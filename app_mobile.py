@@ -710,7 +710,37 @@ elif pagina == "📋 Consultas":
 # ------------------------------------------------------------------------------
 # SECCIONES ADMINISTRATIVAS: GESTIÓN DE CATÁLOGOS Y TABLAS
 # ------------------------------------------------------------------------------
-
+elif pagina == "⚙️ Configuración":
+    st.title("⚙️ Configuración General")
+    
+    with st.container(border=True):
+        # Cargamos los valores actuales desde la base de datos si ya existen
+        precio_actual = obtener_parametro("precio_bordado_nombre") if 'obtener_parametro' in globals() else 2.0
+        dias_actual = int(obtener_parametro("dias_produccion") if 'obtener_parametro' in globals() else 3)
+        
+        precio_bordado_nombre = st.number_input(
+            "Precio Bordado de Nombre", 
+            min_value=0.0, 
+            step=0.50, 
+            value=float(precio_actual), 
+            key="cfg_precio_nombre"
+        )
+        
+        dias_produccion = st.number_input(
+            "Días de Producción", 
+            min_value=1, 
+            step=1, 
+            value=int(dias_actual), 
+            key="cfg_dias_produccion"
+        )
+        
+        if st.button("💾 Guardar Configuración", use_container_width=True, key="btn_save_config"):
+            # Guardamos usando la función existente en db_handler.py
+            guardar_parametro("precio_bordado_nombre", precio_bordado_nombre)
+            guardar_parametro("dias_produccion", dias_produccion)
+            
+            st.success("✅ Configuración guardada con éxito.")
+            st.rerun()
 elif pagina == "🏫 Colegios":
     st.title("🏫 Gestión de Colegios")
     
