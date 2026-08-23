@@ -153,13 +153,14 @@ st.divider()
 # ==============================================================================
 if pagina == "🌐 Inicio / Web":
     
-    # Encabezado tipo "Hero Section" atractivo
+    # Encabezado tipo "Hero Section" con la frase creativa
     st.markdown(
         """
-        <div style="padding: 10px 0; text-align: center;">
-            <h1 style="color: #1E3A8A; margin-bottom: 5px;">✨ ¡Dale identidad a tu estilo con Bordaclick! ✨</h1>
-            <p style="font-size: 1.1rem; color: #4B5563;">
-                Bordados profesionales, uniformes escolares corporativos y personalización textil de alta calidad con entregas rápidas.
+        <div style="padding: 15px 0; text-align: center;">
+            <h1 style="color: #1E3A8A; margin-bottom: 5px;">🧵 Hilos de Alegría 🧵</h1>
+            <h3 style="color: #0284C7; font-weight: 600; margin-bottom: 10px;">¡Con un clic transformamos tu logo en una obra de arte!</h3>
+            <p style="font-size: 1.05rem; color: #4B5563;">
+                Bordados profesionales, uniformes escolares, corporativos y personalización textil de alta calidad con atención directa.
             </p>
         </div>
         """,
