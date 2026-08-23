@@ -94,6 +94,7 @@ except Exception:
 if clave_admin == clave_correcta:
     opciones_menu.extend([
         "📋 Consultas",
+        "📊 Reportes",
         "⚙️ Configuración",
         "🏫 Colegios",
         "🚚 Delivery",
@@ -715,6 +716,7 @@ elif pagina == "📋 Consultas":
 # ------------------------------------------------------------------------------
 # SECCIONES ADMINISTRATIVAS: GESTIÓN DE CATÁLOGOS Y TABLAS###
 # ------------------------------------------------------------------------------
+
 elif pagina == "⚙️ Configuración":
     st.title("⚙️ Configuración General")
     
@@ -947,3 +949,98 @@ elif pagina == "💾 Respaldo":
                 )
         except Exception as e:
             st.error(f"❌ Error al leer la base de datos: {e}")
+elif pagina == "📊 Reportes":
+    st.title("📊 Módulo de Reportes y Estadísticas")
+    
+    df_ordenes_rep = obtener_ordenes()
+    
+    if df_ordenes_rep.empty:
+        st.info("ℹ️ No hay datos suficientes para generar reportes.")
+    else:
+        with st.container(border=True):
+            st.subheader("🔍 Filtros de Reporte Avanzados")
+            
+            # Primera fila de filtros
+            col_f1, col_f2, col_f3 = st.columns(3)
+            with col_f1:
+                estados_disponibles = ["Todos"] + df_ordenes_rep["status"].dropna().unique().tolist()
+                filtro_estado = st.selectbox("Filtrar por Estado", estados_disponibles)
+                
+            with col_f2:
+                colegios_disponibles = ["Todos"] + df_ordenes_rep["colegio"].dropna().unique().tolist()
+                filtro_colegio = st.selectbox("Filtrar por Colegio", colegios_disponibles)
+                
+            with col_f3:
+                filtro_pago = st.selectbox("Estado de Pago", ["Todos", "Pagados (Sin deuda)", "Pendientes por Pagar"])
+
+            # Segunda fila de filtros (Delivery y Nombres Bordados)
+            col_f4, col_f5 = st.columns(2)
+            with col_f4:
+                filtro_delivery = st.selectbox("Tipo de Servicio", ["Todos", "Con Delivery", "Retiro en Tienda / Sin Delivery"])
+                
+            with col_f5:
+                filtro_bordado = st.selectbox("Personalización", ["Todos", "Con Nombres Bordados", "Sin Nombres Bordados"])
+
+        # Aplicación lógica de los filtros sobre el DataFrame
+        df_filtrado = df_ordenes_rep.copy()
+        
+        # 1. Filtro por Estado
+        if filtro_estado != "Todos":
+            df_filtrado = df_filtrado[df_filtrado["status"] == filtro_estado]
+            
+        # 2. Filtro por Colegio
+        if filtro_colegio != "Todos":
+            df_filtrado = df_filtrado[df_filtrado["colegio"] == filtro_colegio]
+            
+        # 3. Filtro por Estado de Pago
+        if "saldo_pendiente" in df_filtrado.columns:
+            if filtro_pago == "Pagados (Sin deuda)":
+                df_filtrado = df_filtrado[df_filtrado["saldo_pendiente"] <= 0]
+            elif filtro_pago == "Pendientes por Pagar":
+                df_filtrado = df_filtrado[df_filtrado["saldo_pendiente"] > 0]
+                
+        # 4. Filtro por Delivery
+        if "delivery" in df_filtrado.columns:
+            if filtro_delivery == "Con Delivery":
+                df_filtrado = df_filtrado[df_filtrado["delivery"].astype(str).str.lower().isin(["sí", "si", "true", "1", "delivery", "con delivery"])]
+            elif filtro_delivery == "Retiro en Tienda / Sin Delivery":
+                df_filtrado = df_filtrado[~df_filtrado["delivery"].astype(str).str.lower().isin(["sí", "si", "true", "1", "delivery", "con delivery"])]
+
+        # 5. Filtro estricto por Nombres Bordados (Evita falsos positivos y filtrados masivos)
+        col_nombre_bordado = next((c for c in df_filtrado.columns if "nombre" in c.lower() or "bordado" in c.lower()), None)
+        
+        if col_nombre_bordado:
+            valores_limpios = df_filtrado[col_nombre_bordado].astype(str).str.strip().str.lower()
+            es_vacio = (
+                df_filtrado[col_nombre_bordado].isna() | 
+                (valores_limpios == "") | 
+                (valores_limpios == "nan") | 
+                (valores_limpios == "none") | 
+                (valores_limpios == "no") | 
+                (valores_limpios == "n/a") |
+                (valores_limpios == "-")
+            )
+
+            if filtro_bordado == "Con Nombres Bordados":
+                df_filtrado = df_filtrado[~es_vacio]
+            elif filtro_bordado == "Sin Nombres Bordados":
+                df_filtrado = df_filtrado[es_vacio]
+        else:
+            if filtro_bordado == "Con Nombres Bordados":
+                df_filtrado = df_filtrado.iloc[0:0]
+
+        # Métricas actualizadas con base en los filtros aplicados
+        st.metric(label="Total de Órdenes Filtradas", value=len(df_filtrado))
+        
+        total_recaudado = df_filtrado["abono"].sum() if "abono" in df_filtrado.columns else 0.0
+        total_pendiente = df_filtrado["saldo_pendiente"].sum() if "saldo_pendiente" in df_filtrado.columns else 0.0
+        
+        c_m1, c_m2 = st.columns(2)
+        with c_m1:
+            st.metric(label="💰 Total Abonado Filtrado", value=f"${total_recaudado:.2f}")
+        with c_m2:
+            st.metric(label="⚠️ Total Pendiente Filtrado", value=f"${total_pendiente:.2f}")
+            
+        st.divider()
+        st.dataframe(df_filtrado, use_container_width=True)           
+ 
