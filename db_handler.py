@@ -180,7 +180,7 @@ def obtener_parametro(parametro):
     return resultado[0] if resultado else 0.0
 
 
-# --- GESTIÓN DE COLEGIOS ---###
+# --- GESTIÓN DE COLEGIOS ---####
 def guardar_colegio(nombre, precio_bordado):
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
