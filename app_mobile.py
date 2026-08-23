@@ -708,7 +708,7 @@ elif pagina == "📋 Consultas":
                     st.warning("⚠️ Marca la casilla de verificación anterior para confirmar la eliminación.")
 
 # ------------------------------------------------------------------------------
-# SECCIONES ADMINISTRATIVAS: GESTIÓN DE CATÁLOGOS Y TABLAS
+# SECCIONES ADMINISTRATIVAS: GESTIÓN DE CATÁLOGOS Y TABLAS###
 # ------------------------------------------------------------------------------
 elif pagina == "⚙️ Configuración":
     st.title("⚙️ Configuración General")
