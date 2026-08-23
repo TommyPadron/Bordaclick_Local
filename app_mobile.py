@@ -149,7 +149,7 @@ with col2:
 st.divider()
 
 # ==============================================================================
-# MÓDULO 0: PÁGINA DE INICIO / PRESENTACIÓN WEB (CORREGIDO)####
+# MÓDULO 0: PÁGINA DE INICIO / PRESENTACIÓN WEB (CORREGIDO)
 # ==============================================================================
 if pagina == "🌐 Inicio / Web":
     
