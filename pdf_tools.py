@@ -60,7 +60,7 @@ def generar_pdf_orden(orden, detalle_orden, tasa_cambio=0.0):
 
     elementos = []
 
-    # 1. Encabezado Título
+    # 1. Encabezado Título##
     elementos.append(Paragraph(f"BORDACLICK - COMPROBANTE DE ORDEN #{pedido_id:04d}", estilo_titulo))
     elementos.append(Spacer(1, 15))
 
