@@ -240,7 +240,7 @@ def eliminar_zona_delivery(nombre):
     conn.close()
 
 
-# --- GESTIÓN DE CATÁLOGOS GENÉRICOS ---
+# --- GESTIÓN DE CATÁLOGOS GENÉRICOS ---#
 def guardar_tipo_prenda(nombre):
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
