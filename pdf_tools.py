@@ -98,7 +98,7 @@ def generar_pdf_orden(orden, detalle_orden, tasa_cambio=0.0):
     elementos.append(tabla_info)
     elementos.append(Spacer(1, 15))
 
-    # 3. Detalle de Bordado de Nombres (NUEVA MEJORA INCORPORADA)###
+    # 3. Detalle de Bordado de Nombres (NUEVA MEJORA INCORPORADA)
     bordar_nombre_val = str(orden.get("bordar_nombre", "No"))
     nombre_bordado_val = str(orden.get("nombre_bordado", ""))
     cantidad_nombre_val = _safe_float(orden.get("cantidad_nombre", 0))
