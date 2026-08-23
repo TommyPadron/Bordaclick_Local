@@ -5,7 +5,7 @@
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
-# 1. IMPORTACIÓN DE LIBRERÍAS Y MÓDULOS DEL PROYECTO#S########
+# 1. IMPORTACIÓN DE LIBRERÍAS Y MÓDULOS DEL PROYECTO
 # ------------------------------------------------------------------------------
 import streamlit as st
 import pandas as pd
@@ -106,8 +106,9 @@ if clave_admin == clave_correcta:
     ])
 
 pagina = st.sidebar.selectbox("Menú", opciones_menu)
+
 # ------------------------------------------------------------------------------
-# 4. MEMORIA DE SESIÓN (SESSION STATE)##
+# 4. MEMORIA DE SESIÓN (SESSION STATE)
 # ------------------------------------------------------------------------------
 if "paso" not in st.session_state:
     st.session_state.paso = 1
@@ -714,13 +715,12 @@ elif pagina == "📋 Consultas":
                     st.warning("⚠️ Marca la casilla de verificación anterior para confirmar la eliminación.")
 
 # ------------------------------------------------------------------------------
-# SECCIONES ADMINISTRATIVAS: GESTIÓN DE CATÁLOGOS Y TABLAS###
+# SECCIONES ADMINISTRATIVAS: GESTIÓN DE CATÁLOGOS Y TABLAS
 # ------------------------------------------------------------------------------
 
 elif pagina == "⚙️ Configuración":
     st.title("⚙️ Configuración General")
     
-    # Bloque protegido para evitar fallos si la función de base de datos no está cargada
     try:
         precio_actual = obtener_parametro("precio_bordado_nombre") if 'obtener_parametro' in globals() else 2.0
         dias_actual = int(obtener_parametro("dias_produccion") if 'obtener_parametro' in globals() else 3)
@@ -754,6 +754,7 @@ elif pagina == "⚙️ Configuración":
                 st.rerun()
             except Exception as e:
                 st.error(f"No se pudo guardar la configuración: {e}")
+
 elif pagina == "🏫 Colegios":
     st.title("🏫 Gestión de Colegios")
     
@@ -949,6 +950,7 @@ elif pagina == "💾 Respaldo":
                 )
         except Exception as e:
             st.error(f"❌ Error al leer la base de datos: {e}")
+
 elif pagina == "📊 Reportes":
     st.title("📊 Módulo de Reportes y Estadísticas")
     
@@ -1042,5 +1044,4 @@ elif pagina == "📊 Reportes":
             st.metric(label="⚠️ Total Pendiente Filtrado", value=f"${total_pendiente:.2f}")
             
         st.divider()
-        st.dataframe(df_filtrado, use_container_width=True)           
- 
+        st.dataframe(df_filtrado, use_container_width=True)
