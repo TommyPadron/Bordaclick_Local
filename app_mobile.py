@@ -73,7 +73,7 @@ except Exception:
     pass
 
 st.set_page_config(
-    page_title="Bordaclick Clientes (DEV)",
+    page_title="Bordaclick | Bordados y Personalización",
     page_icon="🧵",
     layout="centered"
 )
@@ -83,7 +83,8 @@ st.set_page_config(
 # ------------------------------------------------------------------------------
 clave_admin = st.sidebar.text_input("Clave Administrador", type="password")
 
-opciones_menu = ["📝 Nueva Solicitud"]
+# Agregamos "🌐 Inicio / Web" como la primera opción principal para que funcione como sitio web
+opciones_menu = ["🌐 Inicio / Web", "📝 Nueva Solicitud"]
 
 # Lectura segura de la clave desde st.secrets con respaldo local de desarrollo
 try:
@@ -105,7 +106,16 @@ if clave_admin == clave_correcta:
         "💾 Respaldo"
     ])
 
-pagina = st.sidebar.selectbox("Menú", opciones_menu)
+# Control dinámico de la página activa mediante session_state
+if "pagina_activa" not in st.session_state:
+    st.session_state.pagina_activa = opciones_menu[0]
+
+pagina = st.sidebar.selectbox(
+    "Menú", 
+    opciones_menu, 
+    index=opciones_menu.index(st.session_state.pagina_activa) if st.session_state.pagina_activa in opciones_menu else 0
+)
+st.session_state.pagina_activa = pagina
 
 # ------------------------------------------------------------------------------
 # 4. MEMORIA DE SESIÓN (SESSION STATE)
@@ -134,14 +144,79 @@ with col1:
 
 with col2:
     st.title("🧵 Bordaclick")
-    st.caption("Solicitud desde Celular (Entorno DEV)")
+    st.caption("Bordados y Personalización Textil Profesional")
 
 st.divider()
 
 # ==============================================================================
+# MÓDULO 0: PÁGINA DE INICIO / PRESENTACIÓN WEB (CORREGIDO)
+# ==============================================================================
+if pagina == "🌐 Inicio / Web":
+    
+    # Encabezado tipo "Hero Section" atractivo
+    st.markdown(
+        """
+        <div style="padding: 10px 0; text-align: center;">
+            <h1 style="color: #1E3A8A; margin-bottom: 5px;">✨ ¡Dale identidad a tu estilo con Bordaclick! ✨</h1>
+            <p style="font-size: 1.1rem; color: #4B5563;">
+                Bordados profesionales, uniformes escolares corporativos y personalización textil de alta calidad con entregas rápidas.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    
+    st.markdown("---")
+    
+    # Sección de Servicios con Tarjetas e Imágenes
+    st.markdown("### 🎯 ¿Qué podemos hacer por ti?")
+    
+    col_serv1, col_serv2 = st.columns(2)
+    
+    with col_serv1:
+        with st.container(border=True):
+            st.markdown("#### 🏫 Uniformes y Colegios")
+            try:
+                # Usamos use_container_width para evitar advertencias de Streamlit
+                st.image("colegio.jpg", use_container_width=True)
+            except Exception:
+                st.write("*(Foto de uniformes escolares)*")
+                
+            st.write("Ideal para el regreso a clases:")
+            st.markdown("- 🛡️ Bordado de escudos institucionales\n- 👕 Playeras tipo polo escolares\n- 👔 Suéteres y camisas formales")
+            
+    with col_serv2:
+        with st.container(border=True):
+            st.markdown("#### 🏢 Empresas y Eventos")
+            try:
+                # Asegúrate de colocar una foto llamada 'empresa.jpg' en la misma carpeta si deseas mostrarla
+                st.image("empresa.jpg", use_container_width=True)
+            except Exception:
+                st.write("*(Foto de ropa corporativa)*")
+                
+            st.write("Haz que tu marca destaque:")
+            st.markdown("- 👔 Camisas empresariales y chalecos\n- 🧢 Gorras personalizadas\n- 🧵 Parches bordados y dotaciones")
+
+    st.markdown("")
+    
+    # Aviso destacado sobre prendas propias
+    st.info("💡 **¿Tienes tus propias prendas?** Tráelas o envíalas y nosotros nos encargamos de estampar o bordar tu logotipo con acabados de primera.")
+
+    st.markdown("---")
+    
+    # Llamada a la acción (CTA) llamativa para el cliente
+    with st.container(border=True):
+        st.markdown("### 🚀 ¿Listo para hacer un pedido o cotización?")
+        st.write("Arma tu pedido paso a paso en segundos de forma rápida y sencilla.")
+        
+        if st.button("✨ Hacer un Pedido / Cotización Ahora", use_container_width=True, type="primary"):
+            st.session_state.pagina_activa = "📝 Nueva Solicitud"
+            st.session_state.paso = 1
+            st.rerun()
+# ==============================================================================
 # MÓDULO 1: FORMULARIO CLIENTE (NUEVA SOLICITUD EN 4 PASOS)
 # ==============================================================================
-if pagina == "📝 Nueva Solicitud":
+elif pagina == "📝 Nueva Solicitud":
 
     # --------------------------------------------------------------------------
     # PASO 1: DATOS DEL CLIENTE
@@ -715,7 +790,7 @@ elif pagina == "📋 Consultas":
                     st.warning("⚠️ Marca la casilla de verificación anterior para confirmar la eliminación.")
 
 # ------------------------------------------------------------------------------
-# SECCIONES ADMINISTRATIVAS: GESTIÓN DE CATÁLOGOS Y TABLAS##
+# SECCIONES ADMINISTRATIVAS: GESTIÓN DE CATÁLOGOS Y TABLAS
 # ------------------------------------------------------------------------------
 
 elif pagina == "⚙️ Configuración":
