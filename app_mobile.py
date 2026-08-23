@@ -85,7 +85,13 @@ clave_admin = st.sidebar.text_input("Clave Administrador", type="password")
 
 opciones_menu = ["📝 Nueva Solicitud"]
 
-if clave_admin == "BordaAdmin2026*":
+# Lectura segura de la clave desde st.secrets con respaldo local de desarrollo
+try:
+    clave_correcta = st.secrets["admin"]["password"]
+except Exception:
+    clave_correcta = "BordaAdmin2026*"
+
+if clave_admin == clave_correcta:
     opciones_menu.extend([
         "📋 Consultas",
         "⚙️ Configuración",
@@ -99,9 +105,8 @@ if clave_admin == "BordaAdmin2026*":
     ])
 
 pagina = st.sidebar.selectbox("Menú", opciones_menu)
-
 # ------------------------------------------------------------------------------
-# 4. MEMORIA DE SESIÓN (SESSION STATE)
+# 4. MEMORIA DE SESIÓN (SESSION STATE)##
 # ------------------------------------------------------------------------------
 if "paso" not in st.session_state:
     st.session_state.paso = 1
