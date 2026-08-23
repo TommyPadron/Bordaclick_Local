@@ -153,13 +153,13 @@ st.divider()
 # ==============================================================================
 if pagina == "🌐 Inicio / Web":
     
-    # Encabezado tipo "Hero Section" con la frase creativa
+    # Encabezado tipo "Hero Section" con diseño equilibrado
     st.markdown(
         """
-        <div style="padding: 15px 0; text-align: center;">
-            <h1 style="color: #1E3A8A; margin-bottom: 5px;">🧵 Hilos de Alegría 🧵</h1>
-            <h3 style="color: #0284C7; font-weight: 600; margin-bottom: 10px;">¡Con un clic transformamos tu logo en una obra de arte!</h3>
-            <p style="font-size: 1.05rem; color: #4B5563;">
+        <div style="padding: 10px 0; text-align: center;">
+            <h2 style="color: #1E3A8A; margin-bottom: 2px;">🧵 Hilos de Alegría 🧵</h2>
+            <h4 style="color: #0284C7; font-weight: 600; margin-bottom: 12px;">¡Con un clic transformamos tu logo en una obra de arte!</h4>
+            <p style="font-size: 1rem; color: #4B5563; max-width: 700px; margin: 0 auto;">
                 Bordados profesionales, uniformes escolares, corporativos y personalización textil de alta calidad con atención directa.
             </p>
         </div>
