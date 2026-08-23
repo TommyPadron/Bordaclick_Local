@@ -178,7 +178,7 @@ if pagina == "🌐 Inicio / Web":
             st.markdown("#### 🏫 Uniformes y Colegios")
             try:
                 # Usamos use_container_width para evitar advertencias de Streamlit
-                st.image("colegio1.jpg", use_container_width=True)
+                st.image("colegio.jpg", use_container_width=True)
             except Exception:
                 st.write("*(Foto de uniformes escolares)*")
                 
@@ -190,7 +190,7 @@ if pagina == "🌐 Inicio / Web":
             st.markdown("#### 🏢 Empresas y Eventos")
             try:
                 # Asegúrate de colocar una foto llamada 'empresa.jpg' en la misma carpeta si deseas mostrarla
-                st.image("empresa1.jpg", use_container_width=True)
+                st.image("empresa.jpg", use_container_width=True)
             except Exception:
                 st.write("*(Foto de ropa corporativa)*")
                 
