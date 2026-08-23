@@ -210,7 +210,7 @@ def eliminar_colegio(id_col):
     conn.close()
 
 
-# --- GESTIÓN DE DELIVERY ---
+# --- GESTIÓN DE DELIVERY ---#
 def guardar_zona_delivery(nombre, costo):
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
