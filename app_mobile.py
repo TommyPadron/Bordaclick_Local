@@ -178,19 +178,19 @@ if pagina == "🌐 Inicio / Web":
             st.markdown("#### 🏫 Uniformes y Colegios")
             try:
                 # Usamos use_container_width para evitar advertencias de Streamlit
-                st.image("colegio.jpg", use_container_width=True)
+                st.image("colegio1.jpg", use_container_width=True)
             except Exception:
                 st.write("*(Foto de uniformes escolares)*")
                 
             st.write("Ideal para el regreso a clases:")
-            st.markdown("- 🛡️ Bordado de escudos institucionales\n- 👕 Playeras tipo polo escolares\n- 👔 Suéteres y camisas formales")
+            st.markdown("- 🛡️ Bordado de escudos institucioSnales\n- 👕 Playeras tipo polo escolares\n- 👔 Suéteres y camisas formales")
             
     with col_serv2:
         with st.container(border=True):
             st.markdown("#### 🏢 Empresas y Eventos")
             try:
                 # Asegúrate de colocar una foto llamada 'empresa.jpg' en la misma carpeta si deseas mostrarla
-                st.image("empresa.jpg", use_container_width=True)
+                st.image("empresa1.jpg", use_container_width=True)
             except Exception:
                 st.write("*(Foto de ropa corporativa)*")
                 
