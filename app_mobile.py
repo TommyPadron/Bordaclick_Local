@@ -713,34 +713,40 @@ elif pagina == "📋 Consultas":
 elif pagina == "⚙️ Configuración":
     st.title("⚙️ Configuración General")
     
-    with st.container(border=True):
-        # Cargamos los valores actuales desde la base de datos si ya existen
+    # Bloque protegido para evitar fallos si la función de base de datos no está cargada
+    try:
         precio_actual = obtener_parametro("precio_bordado_nombre") if 'obtener_parametro' in globals() else 2.0
         dias_actual = int(obtener_parametro("dias_produccion") if 'obtener_parametro' in globals() else 3)
-        
+    except Exception as e:
+        st.error(f"Error al conectar con la base de datos para cargar parámetros: {e}")
+        precio_actual = 2.0
+        dias_actual = 3
+
+    with st.container(border=True):
         precio_bordado_nombre = st.number_input(
-            "Precio Bordado de Nombre", 
-            min_value=0.0, 
-            step=0.50, 
-            value=float(precio_actual), 
+            "Precio Bordado de Nombre",
+            min_value=0.0,
+            step=0.5,
+            value=float(precio_actual if precio_actual is not None else 2.0),
             key="cfg_precio_nombre"
         )
         
         dias_produccion = st.number_input(
-            "Días de Producción", 
-            min_value=1, 
-            step=1, 
-            value=int(dias_actual), 
+            "Días de Producción",
+            min_value=1,
+            step=1,
+            value=int(dias_actual if dias_actual is not None else 3),
             key="cfg_dias_produccion"
         )
         
         if st.button("💾 Guardar Configuración", use_container_width=True, key="btn_save_config"):
-            # Guardamos usando la función existente en db_handler.py
-            guardar_parametro("precio_bordado_nombre", precio_bordado_nombre)
-            guardar_parametro("dias_produccion", dias_produccion)
-            
-            st.success("✅ Configuración guardada con éxito.")
-            st.rerun()
+            try:
+                guardar_parametro("precio_bordado_nombre", str(precio_bordado_nombre))
+                guardar_parametro("dias_produccion", str(dias_produccion))
+                st.success("✅ Configuración guardada con éxito.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"No se pudo guardar la configuración: {e}")
 elif pagina == "🏫 Colegios":
     st.title("🏫 Gestión de Colegios")
     
