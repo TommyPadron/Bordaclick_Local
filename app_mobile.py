@@ -479,7 +479,7 @@ elif pagina == "📝 Nueva Solicitud":
             nombre_bordado = ""
             cantidad_nombre = 0
             if bordar_nombre == "Sí":
-                nombre_bordado = st.text_input("Nombre / Texto a bordar", placeholder="Ej. Juan Pérez", key="input_texto_nombre")
+                nombre_bordado = st.text_input("Nombre / Texto a bordar ejemplo: Bordar sueter talla x nombre Juan D.Padron parte inferior izquierdo letra azul marino.", placeholder="Ej. Juan Pérez", key="input_texto_nombre")
                 cantidad_nombre = st.number_input("¿En cuántas prendas se aplicará el nombre?", min_value=1, value=1, key="input_cant_nombre")
 
         with st.container(border=True):
