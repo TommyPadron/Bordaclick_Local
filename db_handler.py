@@ -1,6 +1,5 @@
 import streamlit as st
 import sqlite3
-import psycopg2
 import pandas as pd
 import smtplib
 from datetime import date
@@ -19,7 +18,7 @@ def crear_bd():
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS ordenes (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT,
         telefono TEXT,
         correo TEXT,
@@ -44,7 +43,7 @@ def crear_bd():
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS orden_detalle (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         orden_id INTEGER,
         colegio TEXT,
         tipo_prenda TEXT,
@@ -53,8 +52,8 @@ def crear_bd():
         color TEXT,
         cantidad INTEGER,
         FOREIGN KEY (orden_id) REFERENCES ordenes(id)
-    )                   
-    """)                   
+    )                 
+    """)                 
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS configuracion_general (
@@ -65,7 +64,7 @@ def crear_bd():
     
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS colegios (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT UNIQUE,
         precio_bordado REAL
     )
@@ -73,28 +72,28 @@ def crear_bd():
     
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS tipos_prenda (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT UNIQUE
     )
     """)
     
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS marcas (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT UNIQUE
     )
     """)
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS colores (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT UNIQUE
     )
     """)
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS tallas (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT UNIQUE
     )
     """)
@@ -108,7 +107,7 @@ def crear_bd():
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS historico_pagos (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         orden_id INTEGER,
         monto_usd REAL,
         tasa_cambio REAL,
@@ -139,8 +138,7 @@ def guardar_orden(
             precio_bordado, subtotal_bordado, subtotal_nombres, delivery_costo,
             abono, saldo_pendiente, status, fecha_pago
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        RETURNING id
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         nombre, telefono, correo, colegio, cantidad_total, tipo_logo,
         nombre_bordado, cantidad_nombre, delivery, zona_delivery, str(fecha_entrega),
@@ -148,7 +146,7 @@ def guardar_orden(
         abono, saldo_pendiente, status, None
     ))
 
-    orden_id = cursor.fetchone()[0]
+    orden_id = cursor.lastrowid
     conn.commit()
     cursor.close()
     conn.close()
@@ -161,7 +159,7 @@ def guardar_detalle(orden_id, colegio, tipo_prenda, talla, marca, color, cantida
 
     cursor.execute("""
     INSERT INTO orden_detalle (orden_id, colegio, tipo_prenda, talla, marca, color, cantidad)
-    VALUES (%s, %s, %s, %s, %s, %s, %s)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     """, (orden_id, colegio, tipo_prenda, talla, marca, color, cantidad))
 
     conn.commit()
@@ -174,7 +172,7 @@ def guardar_parametro(parametro, valor):
     cursor = conn.cursor()
     cursor.execute("""
     INSERT INTO configuracion_general (parametro, valor) 
-    VALUES (%s, %s)
+    VALUES (?, ?)
     ON CONFLICT (parametro) DO UPDATE SET valor = EXCLUDED.valor
     """, (parametro, valor))
     conn.commit()
@@ -185,7 +183,7 @@ def guardar_parametro(parametro, valor):
 def obtener_parametro(parametro):
     conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("SELECT valor FROM configuracion_general WHERE parametro = %s", (parametro,))
+    cursor.execute("SELECT valor FROM configuracion_general WHERE parametro = ?", (parametro,))
     resultado = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -198,7 +196,7 @@ def guardar_colegio(nombre, precio_bordado):
     cursor = conn.cursor()
     cursor.execute("""
     INSERT INTO colegios (nombre, precio_bordado) 
-    VALUES (%s, %s)
+    VALUES (?, ?)
     ON CONFLICT (nombre) DO UPDATE SET precio_bordado = EXCLUDED.precio_bordado
     """, (nombre, precio_bordado))
     conn.commit()
@@ -214,7 +212,7 @@ def obtener_colegios():
 def obtener_precio_colegio(nombre):
     conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("SELECT precio_bordado FROM colegios WHERE nombre = %s", (nombre,))
+    cursor.execute("SELECT precio_bordado FROM colegios WHERE nombre = ?", (nombre,))
     resultado = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -223,7 +221,7 @@ def obtener_precio_colegio(nombre):
 def eliminar_colegio(id_col):
     conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM colegios WHERE id = %s", (id_col,))
+    cursor.execute("DELETE FROM colegios WHERE id = ?", (id_col,))
     conn.commit()
     cursor.close()
     conn.close()
@@ -235,7 +233,7 @@ def guardar_zona_delivery(nombre, costo):
     cursor = conn.cursor()
     cursor.execute("""
     INSERT INTO zonas_delivery (nombre, costo) 
-    VALUES (%s, %s)
+    VALUES (?, ?)
     ON CONFLICT (nombre) DO UPDATE SET costo = EXCLUDED.costo
     """, (nombre, costo))
     conn.commit()
@@ -251,7 +249,7 @@ def obtener_zonas_delivery():
 def obtener_costo_delivery(nombre):
     conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("SELECT costo FROM zonas_delivery WHERE nombre = %s", (nombre,))
+    cursor.execute("SELECT costo FROM zonas_delivery WHERE nombre = ?", (nombre,))
     resultado = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -260,7 +258,7 @@ def obtener_costo_delivery(nombre):
 def eliminar_zona_delivery(nombre):
     conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM zonas_delivery WHERE nombre = %s", (nombre,))
+    cursor.execute("DELETE FROM zonas_delivery WHERE nombre = ?", (nombre,))
     conn.commit()
     cursor.close()
     conn.close()
@@ -271,7 +269,7 @@ def guardar_tipo_prenda(nombre):
     conn = obtener_conexion()
     cursor = conn.cursor()
     cursor.execute("""
-    INSERT INTO tipos_prenda (nombre) VALUES (%s)
+    INSERT INTO tipos_prenda (nombre) VALUES (?)
     ON CONFLICT (nombre) DO NOTHING
     """, (nombre,))
     conn.commit()
@@ -287,7 +285,7 @@ def obtener_tipos_prenda():
 def eliminar_tipo_prenda(id_item):
     conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM tipos_prenda WHERE id = %s", (id_item,))
+    cursor.execute("DELETE FROM tipos_prenda WHERE id = ?", (id_item,))
     conn.commit()
     cursor.close()
     conn.close()
@@ -296,7 +294,7 @@ def guardar_marca(nombre):
     conn = obtener_conexion()
     cursor = conn.cursor()
     cursor.execute("""
-    INSERT INTO marcas (nombre) VALUES (%s)
+    INSERT INTO marcas (nombre) VALUES (?)
     ON CONFLICT (nombre) DO NOTHING
     """, (nombre,))
     conn.commit()
@@ -312,7 +310,7 @@ def obtener_marcas():
 def eliminar_marca(id_item):
     conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM marcas WHERE id = %s", (id_item,))
+    cursor.execute("DELETE FROM marcas WHERE id = ?", (id_item,))
     conn.commit()
     cursor.close()
     conn.close()
@@ -321,7 +319,7 @@ def guardar_color(nombre):
     conn = obtener_conexion()
     cursor = conn.cursor()
     cursor.execute("""
-    INSERT INTO colores (nombre) VALUES (%s)
+    INSERT INTO colores (nombre) VALUES (?)
     ON CONFLICT (nombre) DO NOTHING
     """, (nombre,))
     conn.commit()
@@ -337,7 +335,7 @@ def obtener_colores():
 def eliminar_color(id_item):
     conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM colores WHERE id = %s", (id_item,))
+    cursor.execute("DELETE FROM colores WHERE id = ?", (id_item,))
     conn.commit()
     cursor.close()
     conn.close()
@@ -346,7 +344,7 @@ def guardar_talla(nombre):
     conn = obtener_conexion()
     cursor = conn.cursor()
     cursor.execute("""
-    INSERT INTO tallas (nombre) VALUES (%s)
+    INSERT INTO tallas (nombre) VALUES (?)
     ON CONFLICT (nombre) DO NOTHING
     """, (nombre,))
     conn.commit()
@@ -362,7 +360,7 @@ def obtener_tallas():
 def eliminar_talla(id_item):
     conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM tallas WHERE id = %s", (id_item,))
+    cursor.execute("DELETE FROM tallas WHERE id = ?", (id_item,))
     conn.commit()
     cursor.close()
     conn.close()
@@ -381,7 +379,7 @@ def obtener_ordenes():
 
 def obtener_orden_por_id(orden_id):
     conn = obtener_conexion()
-    df = pd.read_sql_query("SELECT * FROM ordenes WHERE id = %s", conn, params=(int(orden_id),))
+    df = pd.read_sql_query("SELECT * FROM ordenes WHERE id = ?", conn, params=(int(orden_id),))
     conn.close()
     return df
 
@@ -389,7 +387,7 @@ def obtener_detalle_orden(orden_id):
     conn = obtener_conexion()
     df = pd.read_sql_query("""
     SELECT colegio, tipo_prenda, talla, marca, color, cantidad
-    FROM orden_detalle WHERE orden_id = %s
+    FROM orden_detalle WHERE orden_id = ?
     """, conn, params=(int(orden_id),))
     df.columns = ["Colegio", "Tipo Prenda", "Talla", "Marca", "Color", "Cantidad"]
     conn.close()
@@ -404,7 +402,7 @@ def registrar_pago(orden_id, monto_pago_usd, tasa_cambio=0.0):
         res_tasa = cursor.fetchone()
         tasa_cambio = res_tasa[0] if res_tasa else 0.0
 
-    cursor.execute("SELECT abono, saldo_pendiente FROM ordenes WHERE id = %s", (orden_id,))
+    cursor.execute("SELECT abono, saldo_pendiente FROM ordenes WHERE id = ?", (orden_id,))
     resultado = cursor.fetchone()
 
     abono_actual, saldo_actual = resultado[0], resultado[1]
@@ -413,13 +411,13 @@ def registrar_pago(orden_id, monto_pago_usd, tasa_cambio=0.0):
     fecha_actual = str(date.today())
 
     cursor.execute("""
-        UPDATE ordenes SET abono = %s, saldo_pendiente = %s, fecha_pago = %s WHERE id = %s
+        UPDATE ordenes SET abono = ?, saldo_pendiente = ?, fecha_pago = ? WHERE id = ?
     """, (nuevo_abono, nuevo_saldo, fecha_actual, orden_id))
 
     monto_bs = round(monto_pago_usd * tasa_cambio, 2)
     cursor.execute("""
         INSERT INTO historico_pagos (orden_id, monto_usd, tasa_cambio, monto_bs, fecha)
-        VALUES (%s, %s, %s, %s, %s)
+        VALUES (?, ?, ?, ?, ?)
     """, (orden_id, monto_pago_usd, tasa_cambio, monto_bs, fecha_actual))
 
     conn.commit()
@@ -429,7 +427,7 @@ def registrar_pago(orden_id, monto_pago_usd, tasa_cambio=0.0):
 def obtener_historico_pagos(orden_id=None):
     conn = obtener_conexion()
     if orden_id:
-        query = "SELECT * FROM historico_pagos WHERE orden_id = %s ORDER BY id DESC"
+        query = "SELECT * FROM historico_pagos WHERE orden_id = ? ORDER BY id DESC"
         df = pd.read_sql_query(query, conn, params=(int(orden_id),))
     else:
         query = "SELECT * FROM historico_pagos ORDER BY id DESC"
@@ -440,7 +438,7 @@ def obtener_historico_pagos(orden_id=None):
 def actualizar_status_orden(orden_id, status):
     conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("UPDATE ordenes SET status = %s WHERE id = %s", (status, orden_id))
+    cursor.execute("UPDATE ordenes SET status = ? WHERE id = ?", (status, orden_id))
     conn.commit()
     cursor.close()
     conn.close()
@@ -552,14 +550,14 @@ def enviar_notificacion_estado(destinatario, nombre_cliente, orden_id, fecha_ent
 
 def eliminar_orden(orden_id):
     """
-    Elimina una orden, sus detalles de prendas y su historial de pagos en Supabase.
+    Elimina una orden, sus detalles de prendas y su historial de pagos en SQLite.
     """
     conn = obtener_conexion()
     cursor = conn.cursor()
     try:
-        cursor.execute("DELETE FROM orden_detalle WHERE orden_id = %s", (orden_id,))
-        cursor.execute("DELETE FROM historico_pagos WHERE orden_id = %s", (orden_id,))
-        cursor.execute("DELETE FROM ordenes WHERE id = %s", (orden_id,))
+        cursor.execute("DELETE FROM orden_detalle WHERE orden_id = ?", (orden_id,))
+        cursor.execute("DELETE FROM historico_pagos WHERE orden_id = ?", (orden_id,))
+        cursor.execute("DELETE FROM ordenes WHERE id = ?", (orden_id,))
 
         conn.commit()
         cursor.close()
