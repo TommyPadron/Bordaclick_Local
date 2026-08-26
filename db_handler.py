@@ -1,4 +1,5 @@
 import streamlit as st
+import sqlite3
 import psycopg2
 import pandas as pd
 import smtplib
@@ -8,22 +9,9 @@ from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 
-# def obtener_conexion():
-#     """Establece la conexión a PostgreSQL o usa SQLite local si hay problemas de red"""
-#     try:
-#         # Intentamos conectar directamente usando la URL de Supabase sin pasar por los secretos de Streamlit
-#         database_url = "postgresql://postgres.urrbamdurciddpqrewiy:OFoiJDOT8FTJXH6@aws-0-us-east-1.pooler.supabase.co:6543/postgres"
-#         return psycopg2.connect(database_url)
-#     except Exception as e:
-#         st.warning(f"No se pudo conectar a Supabase, usando entorno local. Detalle: {e}")
-#         # Aquí puedes retornar tu conexión SQLite anterior si prefieres mantener la app operativa localmente
-#         import sqlite3
-#         return sqlite3.connect("bordaclick.db")
-
 def obtener_conexion():
-    """Establece la conexión a PostgreSQL usando los secretos de Streamlit."""
-    database_url = st.secrets["postgres"]["url"]
-    return psycopg2.connect(database_url)
+    """Establece la conexión local a SQLite tal como la tenías al principio."""
+    return sqlite3.connect("bordaclick.db")
 
 def crear_bd():
     conn = obtener_conexion()
