@@ -439,7 +439,7 @@ elif pagina == "📝 Nueva Solicitud":
                     st.rerun()
 
     # --------------------------------------------------------------------------
-    # PASO 3: PERSONALIZACIÓN Y DELIVERY
+    # PASO 3: PERSONALIZACIÓN Y DELIVERY###
     # --------------------------------------------------------------------------
     elif st.session_state.paso == 3:
         st.progress(75)
