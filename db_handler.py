@@ -11,7 +11,7 @@ from email import encoders
 
 def obtener_conexion():
     """Establece la conexión local a SQLite tal como la tenías al principio."""
-    return sqlite3.connect("bordaclick.db")
+    return sqlite3.connect("bordaclick_dev.db")
 
 def crear_bd():
     conn = obtener_conexion()
