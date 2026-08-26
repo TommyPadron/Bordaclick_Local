@@ -1,4 +1,5 @@
-import sqlite3
+import streamlit as st
+import psycopg2
 import pandas as pd
 import smtplib
 from datetime import date
@@ -7,15 +8,18 @@ from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 
-DATABASE = "bordaclick_dev.db"
+def obtener_conexion():
+    """Establece la conexión a PostgreSQL usando los secretos de Streamlit."""
+    database_url = st.secrets["postgres"]["url"]
+    return psycopg2.connect(database_url)
 
 def crear_bd():
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     cursor = conn.cursor()
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS ordenes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         nombre TEXT,
         telefono TEXT,
         correo TEXT,
@@ -40,7 +44,7 @@ def crear_bd():
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS orden_detalle (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         orden_id INTEGER,
         colegio TEXT,
         tipo_prenda TEXT,
@@ -50,7 +54,7 @@ def crear_bd():
         cantidad INTEGER,
         FOREIGN KEY (orden_id) REFERENCES ordenes(id)
     )                   
-    """)                  
+    """)                   
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS configuracion_general (
@@ -61,7 +65,7 @@ def crear_bd():
     
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS colegios (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         nombre TEXT UNIQUE,
         precio_bordado REAL
     )
@@ -69,28 +73,28 @@ def crear_bd():
     
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS tipos_prenda (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         nombre TEXT UNIQUE
     )
     """)
     
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS marcas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         nombre TEXT UNIQUE
     )
     """)
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS colores (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         nombre TEXT UNIQUE
     )
     """)
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS tallas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         nombre TEXT UNIQUE
     )
     """)
@@ -104,7 +108,7 @@ def crear_bd():
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS historico_pagos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         orden_id INTEGER,
         monto_usd REAL,
         tasa_cambio REAL,
@@ -115,6 +119,7 @@ def crear_bd():
     """)
 
     conn.commit()
+    cursor.close()
     conn.close()
 
 
@@ -124,7 +129,7 @@ def guardar_orden(
     fecha_entrega, precio_bordado, subtotal_bordado, subtotal_nombres,
     delivery_costo, abono, saldo_pendiente, status
 ):
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -134,7 +139,8 @@ def guardar_orden(
             precio_bordado, subtotal_bordado, subtotal_nombres, delivery_costo,
             abono, saldo_pendiente, status, fecha_pago
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id
     """, (
         nombre, telefono, correo, colegio, cantidad_total, tipo_logo,
         nombre_bordado, cantidad_nombre, delivery, zona_delivery, str(fecha_entrega),
@@ -142,189 +148,229 @@ def guardar_orden(
         abono, saldo_pendiente, status, None
     ))
 
+    orden_id = cursor.fetchone()[0]
     conn.commit()
-    orden_id = cursor.lastrowid
+    cursor.close()
     conn.close()
     return orden_id
 
 
 def guardar_detalle(orden_id, colegio, tipo_prenda, talla, marca, color, cantidad):
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     cursor = conn.cursor()
 
     cursor.execute("""
     INSERT INTO orden_detalle (orden_id, colegio, tipo_prenda, talla, marca, color, cantidad)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    VALUES (%s, %s, %s, %s, %s, %s, %s)
     """, (orden_id, colegio, tipo_prenda, talla, marca, color, cantidad))
 
     conn.commit()
+    cursor.close()
     conn.close()
 
 
 def guardar_parametro(parametro, valor):
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     cursor = conn.cursor()
     cursor.execute("""
-    INSERT OR REPLACE INTO configuracion_general (parametro, valor) VALUES (?, ?)
+    INSERT INTO configuracion_general (parametro, valor) 
+    VALUES (%s, %s)
+    ON CONFLICT (parametro) DO UPDATE SET valor = EXCLUDED.valor
     """, (parametro, valor))
     conn.commit()
+    cursor.close()
     conn.close()
 
 
 def obtener_parametro(parametro):
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("SELECT valor FROM configuracion_general WHERE parametro = ?", (parametro,))
+    cursor.execute("SELECT valor FROM configuracion_general WHERE parametro = %s", (parametro,))
     resultado = cursor.fetchone()
+    cursor.close()
     conn.close()
     return resultado[0] if resultado else 0.0
 
 
 # --- GESTIÓN DE COLEGIOS ---###
 def guardar_colegio(nombre, precio_bordado):
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO colegios (nombre, precio_bordado) VALUES (?, ?)", (nombre, precio_bordado))
+    cursor.execute("""
+    INSERT INTO colegios (nombre, precio_bordado) 
+    VALUES (%s, %s)
+    ON CONFLICT (nombre) DO UPDATE SET precio_bordado = EXCLUDED.precio_bordado
+    """, (nombre, precio_bordado))
     conn.commit()
+    cursor.close()
     conn.close()
 
 def obtener_colegios():
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     df = pd.read_sql_query("SELECT id, nombre, precio_bordado FROM colegios ORDER BY nombre", conn)
     conn.close()
     return df
 
 def obtener_precio_colegio(nombre):
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("SELECT precio_bordado FROM colegios WHERE nombre = ?", (nombre,))
+    cursor.execute("SELECT precio_bordado FROM colegios WHERE nombre = %s", (nombre,))
     resultado = cursor.fetchone()
+    cursor.close()
     conn.close()
     return resultado[0] if resultado else 0.0
 
 def eliminar_colegio(id_col):
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM colegios WHERE id = ?", (id_col,))
+    cursor.execute("DELETE FROM colegios WHERE id = %s", (id_col,))
     conn.commit()
+    cursor.close()
     conn.close()
 
 
 # --- GESTIÓN DE DELIVERY ---#
 def guardar_zona_delivery(nombre, costo):
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO zonas_delivery (nombre, costo) VALUES (?, ?)", (nombre, costo))
+    cursor.execute("""
+    INSERT INTO zonas_delivery (nombre, costo) 
+    VALUES (%s, %s)
+    ON CONFLICT (nombre) DO UPDATE SET costo = EXCLUDED.costo
+    """, (nombre, costo))
     conn.commit()
+    cursor.close()
     conn.close()
 
 def obtener_zonas_delivery():
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     df = pd.read_sql_query("SELECT nombre, costo FROM zonas_delivery ORDER BY nombre", conn)
     conn.close()
     return df
 
 def obtener_costo_delivery(nombre):
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("SELECT costo FROM zonas_delivery WHERE nombre = ?", (nombre,))
+    cursor.execute("SELECT costo FROM zonas_delivery WHERE nombre = %s", (nombre,))
     resultado = cursor.fetchone()
+    cursor.close()
     conn.close()
     return resultado[0] if resultado else 0.0
 
 def eliminar_zona_delivery(nombre):
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM zonas_delivery WHERE nombre = ?", (nombre,))
+    cursor.execute("DELETE FROM zonas_delivery WHERE nombre = %s", (nombre,))
     conn.commit()
+    cursor.close()
     conn.close()
 
 
 # --- GESTIÓN DE CATÁLOGOS GENÉRICOS ---#
 def guardar_tipo_prenda(nombre):
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO tipos_prenda (nombre) VALUES (?)", (nombre,))
+    cursor.execute("""
+    INSERT INTO tipos_prenda (nombre) VALUES (%s)
+    ON CONFLICT (nombre) DO NOTHING
+    """, (nombre,))
     conn.commit()
+    cursor.close()
     conn.close()
 
 def obtener_tipos_prenda():
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     df = pd.read_sql_query("SELECT id, nombre FROM tipos_prenda ORDER BY nombre", conn)
     conn.close()
     return df
 
 def eliminar_tipo_prenda(id_item):
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM tipos_prenda WHERE id = ?", (id_item,))
+    cursor.execute("DELETE FROM tipos_prenda WHERE id = %s", (id_item,))
     conn.commit()
+    cursor.close()
     conn.close()
 
 def guardar_marca(nombre):
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO marcas (nombre) VALUES (?)", (nombre,))
+    cursor.execute("""
+    INSERT INTO marcas (nombre) VALUES (%s)
+    ON CONFLICT (nombre) DO NOTHING
+    """, (nombre,))
     conn.commit()
+    cursor.close()
     conn.close()
 
 def obtener_marcas():
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     df = pd.read_sql_query("SELECT id, nombre FROM marcas ORDER BY nombre", conn)
     conn.close()
     return df
 
 def eliminar_marca(id_item):
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM marcas WHERE id = ?", (id_item,))
+    cursor.execute("DELETE FROM marcas WHERE id = %s", (id_item,))
     conn.commit()
+    cursor.close()
     conn.close()
 
 def guardar_color(nombre):
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO colores (nombre) VALUES (?)", (nombre,))
+    cursor.execute("""
+    INSERT INTO colores (nombre) VALUES (%s)
+    ON CONFLICT (nombre) DO NOTHING
+    """, (nombre,))
     conn.commit()
+    cursor.close()
     conn.close()
 
 def obtener_colores():
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     df = pd.read_sql_query("SELECT id, nombre FROM colores ORDER BY nombre", conn)
     conn.close()
     return df
 
 def eliminar_color(id_item):
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM colores WHERE id = ?", (id_item,))
+    cursor.execute("DELETE FROM colores WHERE id = %s", (id_item,))
     conn.commit()
+    cursor.close()
     conn.close()
 
 def guardar_talla(nombre):
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO tallas (nombre) VALUES (?)", (nombre,))
+    cursor.execute("""
+    INSERT INTO tallas (nombre) VALUES (%s)
+    ON CONFLICT (nombre) DO NOTHING
+    """, (nombre,))
     conn.commit()
+    cursor.close()
     conn.close()
 
 def obtener_tallas():
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     df = pd.read_sql_query("SELECT id, nombre FROM tallas ORDER BY nombre", conn)
     conn.close()
     return df
 
 def eliminar_talla(id_item):
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM tallas WHERE id = ?", (id_item,))
+    cursor.execute("DELETE FROM tallas WHERE id = %s", (id_item,))
     conn.commit()
+    cursor.close()
     conn.close()
 
 
 # --- CONSULTAS DE ÓRDENES Y PAGOS ---
 def obtener_ordenes():
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     df = pd.read_sql_query("""
     SELECT id, nombre, telefono, correo, colegio, cantidad_total, delivery, zona_delivery, status, fecha_entrega, abono, saldo_pendiente, fecha_pago,
            subtotal_bordado, subtotal_nombres, delivery_costo, tipo_logo, nombre_bordado, cantidad_nombre
@@ -334,32 +380,31 @@ def obtener_ordenes():
     return df
 
 def obtener_orden_por_id(orden_id):
-    conn = sqlite3.connect(DATABASE)
-    df = pd.read_sql_query(f"SELECT * FROM ordenes WHERE id = {int(orden_id)}", conn)
+    conn = obtener_conexion()
+    df = pd.read_sql_query("SELECT * FROM ordenes WHERE id = %s", conn, params=(int(orden_id),))
     conn.close()
     return df
 
 def obtener_detalle_orden(orden_id):
-    conn = sqlite3.connect(DATABASE)
-    df = pd.read_sql_query(f"""
+    conn = obtener_conexion()
+    df = pd.read_sql_query("""
     SELECT colegio, tipo_prenda, talla, marca, color, cantidad
-    FROM orden_detalle WHERE orden_id = {int(orden_id)}
-    """, conn)
+    FROM orden_detalle WHERE orden_id = %s
+    """, conn, params=(int(orden_id),))
     df.columns = ["Colegio", "Tipo Prenda", "Talla", "Marca", "Color", "Cantidad"]
     conn.close()
     return df
 
 def registrar_pago(orden_id, monto_pago_usd, tasa_cambio=0.0):
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     cursor = conn.cursor()
     
-    # Si no nos pasan una tasa, buscamos la que está guardada globalmente
     if tasa_cambio <= 0:
         cursor.execute("SELECT valor FROM configuracion_general WHERE parametro = 'tasa_cambio'")
         res_tasa = cursor.fetchone()
         tasa_cambio = res_tasa[0] if res_tasa else 0.0
 
-    cursor.execute("SELECT abono, saldo_pendiente FROM ordenes WHERE id = ?", (orden_id,))
+    cursor.execute("SELECT abono, saldo_pendiente FROM ordenes WHERE id = %s", (orden_id,))
     resultado = cursor.fetchone()
 
     abono_actual, saldo_actual = resultado[0], resultado[1]
@@ -368,34 +413,36 @@ def registrar_pago(orden_id, monto_pago_usd, tasa_cambio=0.0):
     fecha_actual = str(date.today())
 
     cursor.execute("""
-        UPDATE ordenes SET abono = ?, saldo_pendiente = ?, fecha_pago = ? WHERE id = ?
+        UPDATE ordenes SET abono = %s, saldo_pendiente = %s, fecha_pago = %s WHERE id = %s
     """, (nuevo_abono, nuevo_saldo, fecha_actual, orden_id))
 
-    # Guardar SIEMPRE en el histórico de pagos con el cálculo equivalente en Bs.
     monto_bs = round(monto_pago_usd * tasa_cambio, 2)
     cursor.execute("""
         INSERT INTO historico_pagos (orden_id, monto_usd, tasa_cambio, monto_bs, fecha)
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s)
     """, (orden_id, monto_pago_usd, tasa_cambio, monto_bs, fecha_actual))
 
     conn.commit()
+    cursor.close()
     conn.close()
 
 def obtener_historico_pagos(orden_id=None):
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     if orden_id:
-        query = f"SELECT * FROM historico_pagos WHERE orden_id = {int(orden_id)} ORDER BY id DESC"
+        query = "SELECT * FROM historico_pagos WHERE orden_id = %s ORDER BY id DESC"
+        df = pd.read_sql_query(query, conn, params=(int(orden_id),))
     else:
         query = "SELECT * FROM historico_pagos ORDER BY id DESC"
-    df = pd.read_sql_query(query, conn)
+        df = pd.read_sql_query(query, conn)
     conn.close()
     return df
 
 def actualizar_status_orden(orden_id, status):
-    conn = sqlite3.connect(DATABASE)
+    conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute("UPDATE ordenes SET status = ? WHERE id = ?", (status, orden_id))
+    cursor.execute("UPDATE ordenes SET status = %s WHERE id = %s", (status, orden_id))
     conn.commit()
+    cursor.close()
     conn.close()
 
 
@@ -503,61 +550,24 @@ def enviar_notificacion_estado(destinatario, nombre_cliente, orden_id, fecha_ent
     servidor.send_message(mensaje)
     servidor.quit()
 
-import sqlite3
-
 def eliminar_orden(orden_id):
     """
-    Elimina una orden, sus detalles de prendas y su historial de pagos.
+    Elimina una orden, sus detalles de prendas y su historial de pagos en Supabase.
     """
-    conn = sqlite3.connect("bordaclick_dev.db")
+    conn = obtener_conexion()
     cursor = conn.cursor()
     try:
-        # 1. Eliminar los detalles de prendas (Tabla: orden_detalle)
-        cursor.execute("DELETE FROM orden_detalle WHERE orden_id = ?", (orden_id,))
-
-        # 2. Eliminar el historial de pagos (Tabla: historico_pagos)
-        cursor.execute("DELETE FROM historico_pagos WHERE orden_id = ?", (orden_id,))
-
-        # 3. Eliminar el registro principal (Tabla: ordenes)
-        cursor.execute("DELETE FROM ordenes WHERE id = ?", (orden_id,))
+        cursor.execute("DELETE FROM orden_detalle WHERE orden_id = %s", (orden_id,))
+        cursor.execute("DELETE FROM historico_pagos WHERE orden_id = %s", (orden_id,))
+        cursor.execute("DELETE FROM ordenes WHERE id = %s", (orden_id,))
 
         conn.commit()
+        cursor.close()
+        conn.close()
         return True
     except Exception as e:
         print(f"Error al eliminar la orden #{orden_id}: {e}")
         conn.rollback()
-        return False
-    finally:
+        cursor.close()
         conn.close()
-
-
-
-import sqlite3
-
-def eliminar_orden(orden_id):
-    """
-    Elimina una orden, sus detalles de prendas y su historial de pagos.
-    """
-    conn = sqlite3.connect("bordaclick_dev.db")
-    cursor = conn.cursor()
-    try:
-        # 1. Eliminar los detalles de prendas (Tabla: orden_detalle)###
-        cursor.execute("DELETE FROM orden_detalle WHERE orden_id = ?", (orden_id,))
-
-        # 2. Eliminar el historial de pagos (Tabla: historico_pagos)
-        cursor.execute("DELETE FROM historico_pagos WHERE orden_id = ?", (orden_id,))
-
-        # 3. Eliminar el registro principal (Tabla: ordenes)
-        cursor.execute("DELETE FROM ordenes WHERE id = ?", (orden_id,))
-
-        conn.commit()
-        return True
-    except Exception as e:
-        print(f"Error al eliminar la orden #{orden_id}: {e}")
-        conn.rollback()
         return False
-    finally:
-        conn.close()
-
-
-
