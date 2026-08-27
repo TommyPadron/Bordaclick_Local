@@ -83,10 +83,8 @@ st.set_page_config(
 # ------------------------------------------------------------------------------
 clave_admin = st.sidebar.text_input("Clave Administrador", type="password")
 
-# Agregamos "🌐 Inicio / Web" como la primera opción principal para que funcione como sitio web
 opciones_menu = ["🌐 Inicio / Web", "📝 Nueva Solicitud"]
 
-# Lectura segura de la clave desde st.secrets con respaldo local de desarrollo
 try:
     clave_correcta = st.secrets["admin"]["password"]
 except Exception:
@@ -106,7 +104,6 @@ if clave_admin == clave_correcta:
         "💾 Respaldo"
     ])
 
-# Control dinámico de la página activa mediante session_state
 if "pagina_activa" not in st.session_state:
     st.session_state.pagina_activa = opciones_menu[0]
 
@@ -149,11 +146,10 @@ with col2:
 st.divider()
 
 # ==============================================================================
-# MÓDULO 0: PÁGINA DE INICIO / PRESENTACIÓN WEB (CORREGIDO)
+# MÓDULO 0: PÁGINA DE INICIO / PRESENTACIÓN WEB
 # ==============================================================================
 if pagina == "🌐 Inicio / Web":
     
-    # Encabezado tipo "Hero Section" con diseño equilibrado
     st.markdown(
         """
         <div style="padding: 10px 0; text-align: center;">
@@ -169,7 +165,6 @@ if pagina == "🌐 Inicio / Web":
     
     st.markdown("---")
     
-    # Sección de Servicios con Tarjetas e Imágenes
     st.markdown("### 🎯 ¿Qué podemos hacer por ti?")
     
     col_serv1, col_serv2 = st.columns(2)
@@ -197,13 +192,10 @@ if pagina == "🌐 Inicio / Web":
             st.markdown("- 👔 Camisas empresariales y chalecos\n- 🧢 Gorras personalizadas\n- 🧵 Parches bordados y dotaciones")
 
     st.markdown("")
-    
-    # Aviso destacado sobre prendas propias
     st.info("💡 **¿Tienes tus propias prendas?** Tráelas o envíalas y nosotros nos encargamos de estampar o bordar tu logotipo con acabados de primera.")
 
     st.markdown("---")
     
-    # Llamada a la acción (CTA) llamativa para el cliente
     with st.container(border=True):
         st.markdown("### 🚀 ¿Listo para hacer un pedido o cotización?")
         st.write("Arma tu pedido paso a paso en segundos de forma rápida y sencilla.")
@@ -214,16 +206,49 @@ if pagina == "🌐 Inicio / Web":
             st.rerun()
 
 # ==============================================================================
-# MÓDULO 1: FORMULARIO CLIENTE (NUEVA SOLICITUD EN 4 PASOS)
+# MÓDULO 1: FORMULARIO CLIENTE (NUEVA SOLICITUD EN 4 PASOS CON NAVEGACIÓN MEJORADA)
 # ==============================================================================
 elif pagina == "📝 Nueva Solicitud":
+
+    # --- BARRA DE NAVEGACIÓN / PESTAÑAS DE PASOS INTERACTIVAS ---
+    st.markdown("### 📝 Configura tu Solicitud")
+    
+    c_p1, c_p2, c_p3, c_p4 = st.columns(4)
+    
+    with c_p1:
+        if st.button("1. Contacto", use_container_width=True, type="primary" if st.session_state.paso == 1 else "secondary"):
+            st.session_state.paso = 1
+            st.rerun()
+    with c_p2:
+        if st.button("2. Prendas", use_container_width=True, type="primary" if st.session_state.paso == 2 else "secondary"):
+            if st.session_state.get("nombre"):
+                st.session_state.paso = 2
+                st.rerun()
+            else:
+                st.warning("Completa los datos de contacto primero.")
+    with c_p3:
+        if st.button("3. Personalización", use_container_width=True, type="primary" if st.session_state.paso == 3 else "secondary"):
+            if st.session_state.get("colegios_agregados"):
+                st.session_state.paso = 3
+                st.rerun()
+            else:
+                st.warning("Agrega al menos un grupo de prendas primero.")
+    with c_p4:
+        if st.button("4. Resumen", use_container_width=True, type="primary" if st.session_state.paso == 4 else "secondary"):
+            if st.session_state.get("colegios_agregados") and st.session_state.get("tipo_logo"):
+                st.session_state.paso = 4
+                st.rerun()
+            else:
+                st.warning("Completa los pasos anteriores.")
+
+    st.divider()
 
     # --------------------------------------------------------------------------
     # PASO 1: DATOS DEL CLIENTE
     # --------------------------------------------------------------------------
     if st.session_state.paso == 1:
         st.progress(25)
-        st.subheader("👤 Datos de Contacto")
+        st.subheader("👤 1. Datos de Contacto")
         st.caption("Por favor, ingresa tus datos para gestionar tu solicitud de bordado.")
 
         with st.container(border=True):
@@ -231,7 +256,7 @@ elif pagina == "📝 Nueva Solicitud":
             telefono = st.text_input("Teléfono de Contacto (WhatsApp) *", value=st.session_state.get("telefono", ""), placeholder="Ej. 04121234567")
             correo = st.text_input("Correo Electrónico *", value=st.session_state.get("correo", ""), placeholder="ejemplo@correo.com")
 
-        if st.button("Continuar a Selección de Prendas ➡️", use_container_width=True):
+        if st.button("Continuar a Selección de Prendas ➡️", use_container_width=True, type="primary"):
             if not nombre.strip():
                 st.error("Debe ingresar el nombre.")
             elif not telefono.strip() or len(telefono.strip()) < 10:
@@ -246,16 +271,15 @@ elif pagina == "📝 Nueva Solicitud":
                 st.rerun()
 
     # --------------------------------------------------------------------------
-    # PASO 2: SELECCIÓN DE COLEGIO Y PRENDAS (CORREGIDO PARA EVITAR BLOQUEOS)
+    # PASO 2: SELECCIÓN DE COLEGIO Y PRENDAS (TARJETAS VISUALES MEJORADAS)
     # --------------------------------------------------------------------------
     elif st.session_state.paso == 2:
         st.progress(50)
-        st.subheader("🏫 Colegio y Prendas")
+        st.subheader("🏫 2. Colegio y Prendas")
 
         es_admin = (clave_admin == "BordaAdmin2026*")
 
         df_col = obtener_colegios()
-        # Permitimos una opción opcional o sin colegio para evitar trabas si tiene costo 0 o no aplica
         lista_colegios = ["Seleccione un colegio (Opcional)..."] + (df_col["nombre"].dropna().tolist() if not df_col.empty else [])
 
         df_p = obtener_tipos_prenda()
@@ -355,7 +379,7 @@ elif pagina == "📝 Nueva Solicitud":
         if "prendas_actuales" not in st.session_state:
             st.session_state.prendas_actuales = []
 
-        if st.button("➕ Agregar Prenda a la Lista", use_container_width=True):
+        if st.button("➕ Agregar Prenda a la Lista Actual", use_container_width=True):
             if tipo_prenda == "Seleccione una prenda...":
                 st.error("Debe seleccionar un tipo de prenda.")
             elif talla == "Seleccione una talla...":
@@ -375,10 +399,10 @@ elif pagina == "📝 Nueva Solicitud":
                 st.rerun()
 
         st.divider()
-        st.subheader("📋 Prendas agregadas")
+        st.subheader("📋 Prendas en preparación")
 
         if not st.session_state.prendas_actuales:
-            st.info("Aún no has agregado prendas.")
+            st.info("Aún no has agregado prendas a este grupo.")
         else:
             for i, prenda in enumerate(st.session_state.prendas_actuales):
                 c1, c2 = st.columns([5, 1])
@@ -389,11 +413,11 @@ elif pagina == "📝 Nueva Solicitud":
                         st.session_state.prendas_actuales.pop(i)
                         st.rerun()
 
-        if st.button("💾 Guardar Bloque de Prendas / Colegio", use_container_width=True):
+        if st.button("💾 Guardar Grupo de Prendas / Colegio", use_container_width=True, type="primary"):
             if not st.session_state.prendas_actuales:
                 st.error("Debe agregar al menos una prenda antes de guardar.")
             else:
-                nombre_grupo_colegio = colegio if colegio != "Seleccione un colegio (Opcional)..." else "General / Sin Colegio"
+                nombre_grupo_colegio = colegio if colegio != "Seleccione un colegio (Opcional)..." else "General / Sin logo de Colegio"
                 if any(c["colegio"] == nombre_grupo_colegio for c in st.session_state.colegios_agregados):
                     st.error("Ese grupo ya fue agregado a la lista.")
                 else:
@@ -407,8 +431,7 @@ elif pagina == "📝 Nueva Solicitud":
                     st.rerun()
 
         st.divider()
-
-        st.subheader("🏫 Grupos / Colegios Agregados en la Solicitud")
+        st.subheader("🏫 Grupos / Colegios Guardados en tu Solicitud")
         if not st.session_state.colegios_agregados:
             st.info("Aún no hay grupos listos en tu solicitud.")
         else:
@@ -416,14 +439,14 @@ elif pagina == "📝 Nueva Solicitud":
                 with st.container(border=True):
                     c_lbl, c_btn = st.columns([5, 1])
                     with c_lbl:
-                        st.markdown(f"### 🏫 {colegio_data['colegio']}")
+                        st.markdown(f"#### 🛡️ {colegio_data['colegio']}")
                     with c_btn:
-                        if st.button("🗑️", key=f"del_col_agregado_{idx_col}"):
+                        if st.button("🗑️ Eliminar Grupo", key=f"del_col_agregado_{idx_col}"):
                             st.session_state.colegios_agregados.pop(idx_col)
                             st.rerun()
 
-                    for prenda in colegio_data["prendas"]:
-                        st.write(f"• **{prenda['tipo']}** ({prenda['talla']}) - {prenda['marca']} / {prenda['color']} x **{prenda['cantidad']} unid.**")
+                    for p_idx, prenda in enumerate(colegio_data["prendas"]):
+                        st.write(f"&nbsp;&nbsp;&nbsp;&nbsp;• **{prenda['tipo']}** | Talla: {prenda['talla']} | Marca: {prenda['marca']} | Color: {prenda['color']} | Qty: **{prenda['cantidad']}**")
 
         st.divider()
         col1, col2 = st.columns(2)
@@ -432,19 +455,22 @@ elif pagina == "📝 Nueva Solicitud":
                 st.session_state.paso = 1
                 st.rerun()
         with col2:
-            if st.button("Continuar a Personalización ➡️", use_container_width=True):
+            if st.button("Continuar a Personalización ➡️", use_container_width=True, type="primary"):
                 if not st.session_state.colegios_agregados:
-                    st.error("Debe guardar al menos un bloque de prendas.")
+                    st.error("Debe guardar al menos un grupo de prendas.")
                 else:
                     st.session_state.paso = 3
                     st.rerun()
 
     # --------------------------------------------------------------------------
-    # PASO 3: PERSONALIZACIÓN Y DELIVERY
+    # PASO 3: PERSONALIZACIÓN Y DELIVERY (CON VALIDACIÓN DE CANTIDAD DE NOMBRES)
     # --------------------------------------------------------------------------
     elif st.session_state.paso == 3:
         st.progress(75)
-        st.subheader("🧵 Personalización y Entrega")
+        st.subheader("🧵 3. Personalización y Entrega")
+
+        # Calculamos el total de prendas reales guardadas en todos los colegios/grupos
+        total_prendas_pedido = sum(p["cantidad"] for c in st.session_state.colegios_agregados for p in c["prendas"])
 
         df_del = obtener_zonas_delivery()
         lista_zonas = []
@@ -480,8 +506,15 @@ elif pagina == "📝 Nueva Solicitud":
             nombre_bordado = ""
             cantidad_nombre = 0
             if bordar_nombre == "Sí":
-                nombre_bordado = st.text_input("Nombre / Texto a bordar ejemplo: Bordar sueter talla x nombre Juan D.Padron parte inferior izquierdo letra azul marino.", placeholder="Ej. Juan Pérez", key="input_texto_nombre")
-                cantidad_nombre = st.number_input("¿En cuántas prendas se aplicará el nombre?", min_value=1, value=1, key="input_cant_nombre")
+                nombre_bordado = st.text_input("Nombre / Texto a bordar (ej. Nombre y ubicación en la prenda)", placeholder="Ej. Juan Pérez", key="input_texto_nombre")
+                # Limitamos el max_value al total real de prendas para evitar errores lógicos
+                cantidad_nombre = st.number_input(
+                    f"¿En cuántas prendas se aplicará el nombre? (Máximo disponible: {total_prendas_pedido})", 
+                    min_value=1, 
+                    max_value=total_prendas_pedido, 
+                    value=min(1, total_prendas_pedido), 
+                    key="input_cant_nombre"
+                )
 
         with st.container(border=True):
             st.markdown("### 🚚 Método de Entrega")
@@ -510,14 +543,16 @@ elif pagina == "📝 Nueva Solicitud":
                 st.session_state.paso = 2
                 st.rerun()
         with col2:
-            if st.button("Continuar al Resumen ➡️", use_container_width=True):
+            if st.button("Continuar al Resumen ➡️", use_container_width=True, type="primary"):
                 if bordar_nombre == "Sí" and not nombre_bordado.strip():
                     st.error("Por favor, ingrese el nombre que desea bordar.")
+                elif bordar_nombre == "Sí" and cantidad_nombre > total_prendas_pedido:
+                    st.error(f"❌ La cantidad de nombres a bordar ({cantidad_nombre}) no puede ser mayor al total de prendas en tu pedido ({total_prendas_pedido}).")
                 else:
                     st.session_state.tipo_logo = tipo_logo
                     st.session_state.bordar_nombre = bordar_nombre
                     st.session_state.nombre_bordado = nombre_bordado
-                    st.session_state.cantidad_nombre = cantidad_nombre
+                    st.session_state.cantidad_nombre = cantidad_nombre if bordar_nombre == "Sí" else 0
                     st.session_state.delivery = "Sí" if delivery == "Envío a Domicilio (Delivery)" else "No"
                     st.session_state.zona_delivery = zona_delivery
                     st.session_state.costo_delivery = costo_delivery
@@ -530,7 +565,7 @@ elif pagina == "📝 Nueva Solicitud":
     # --------------------------------------------------------------------------
     elif st.session_state.paso == 4:
         st.progress(100)
-        st.subheader("📋 Resumen Final de tu Solicitud")
+        st.subheader("📋 4. Resumen Final de tu Solicitud")
 
         with st.container(border=True):
             st.markdown(f"### 👤 {st.session_state.nombre}")
@@ -557,8 +592,7 @@ elif pagina == "📝 Nueva Solicitud":
                 colegio_nombre = colegio_data["colegio"]
                 cantidad_colegio = sum(p["cantidad"] for p in colegio_data["prendas"])
                 
-                # Si es un grupo sin colegio o costo 0, el precio base es 0
-                if colegio_nombre == "General / Sin Colegio":
+                if colegio_nombre == "General / Sin logo de Colegio":
                     precio_colegio = 0.0
                 else:
                     precio_colegio = obtener_precio_colegio(colegio_nombre)
@@ -591,7 +625,7 @@ elif pagina == "📝 Nueva Solicitud":
                 st.session_state.paso = 3
                 st.rerun()
         with col2:
-            if st.button("✅ Confirmar y Enviar Solicitud", key="confirmar_solicitud_mobile", use_container_width=True, disabled=st.session_state.solicitud_enviada):
+            if st.button("✅ Confirmar y Enviar Solicitud", key="confirmar_solicitud_mobile", use_container_width=True, type="primary", disabled=st.session_state.solicitud_enviada):
                 colegio_orden = "Múltiples Grupos" if len(st.session_state.colegios_agregados) > 1 else st.session_state.colegios_agregados[0]["colegio"]
                 cantidad_total = sum(p["cantidad"] for c in st.session_state.colegios_agregados for p in c["prendas"])
 
