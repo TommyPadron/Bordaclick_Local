@@ -822,7 +822,7 @@ elif pagina == "📋 Consultas":
                     st.warning("⚠️ Marca la casilla de verificación anterior para confirmar la eliminación.")
 
 # ==============================================================================
-# MÓDULO ADMINISTRATIVO: DASHBOARD, NÓMINA BORDADOR Y EXPORTACIÓN EXCEL PROFESIONAL
+# MÓDULO ADMINISTRATIVO: DASHBOARD, NÓMINA, REPORTES FASES B Y C Y EXCEL
 # ==============================================================================
 elif pagina == "📊 Reportes":
     import io
@@ -836,6 +836,147 @@ elif pagina == "📊 Reportes":
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
 
+    # --------------------------------------------------------------------------
+    # FUNCIONES DE FASE B: GENERACIÓN DE EXCEL HISTÓRICO CON FORMATO CONDICIONAL Y TOTALES
+    # --------------------------------------------------------------------------
+    def generar_excel_historico(df_ordenes):
+        buffer = io.BytesIO()
+        if df_ordenes.empty:
+            return buffer
+
+        df_export = df_ordenes.copy()
+
+        cols_deseadas = [c for c in ["id", "nombre", "telefono", "email", "colegio", "cantidad_total", "delivery", "delivery_costo", "status", "monto_total", "abono", "saldo_pendiente", "fecha_entrega"] if c in df_export.columns]
+        df_export = df_export[cols_deseadas]
+
+        if "id" in df_export.columns:
+            df_export["id"] = df_export["id"].apply(lambda x: f"#{int(x):04d}" if str(x).isdigit() else str(x))
+
+        renombres = {
+            "id": "ID Pedido", "nombre": "Cliente", "telefono": "Teléfono", "email": "Correo",
+            "colegio": "Colegio / Detalle", "cantidad_total": "Cant. Prendas", "delivery": "Delivery",
+            "delivery_costo": "Costo Delivery ($)", "status": "Estado", "monto_total": "Monto Total ($)",
+            "abono": "Abonado ($)", "saldo_pendiente": "Saldo Pendiente ($)", "fecha_entrega": "Fecha Entrega"
+        }
+        df_export.rename(columns=renombres, inplace=True)
+
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            df_export.to_excel(writer, sheet_name="Historico_General", index=False, startrow=2)
+            wb = writer.book
+            ws = wb["Historico_General"]
+
+            # Estilos Base
+            header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+            title_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+            total_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+            
+            header_font = Font(name="Segoe UI", size=11, bold=True, color="FFFFFF")
+            title_font = Font(name="Segoe UI", size=13, bold=True, color="1F4E79")
+            total_font = Font(name="Segoe UI", size=11, bold=True)
+            body_font = Font(name="Segoe UI", size=10)
+            
+            thin_border = Border(
+                left=Side(style='thin', color='D9D9D9'), right=Side(style='thin', color='D9D9D9'),
+                top=Side(style='thin', color='D9D9D9'), bottom=Side(style='thin', color='D9D9D9')
+            )
+            double_bottom_border = Border(
+                top=Side(style='thin', color='000000'),
+                bottom=Side(style='double', color='000000')
+            )
+
+            # Banner de Título Superior
+            ws.merge_cells("A1:M1")
+            cell_title = ws["A1"]
+            cell_title.value = "HISTÓRICO GENERAL DE ÓRDENES Y PAGOS - BORDACLICK"
+            cell_title.font = title_font
+            cell_title.fill = title_fill
+            cell_title.alignment = Alignment(horizontal="center", vertical="center")
+            ws.row_dimensions[1].height = 35
+
+            # Encabezados
+            ws.row_dimensions[3].height = 25
+            for col_num in range(1, ws.max_column + 1):
+                cell = ws.cell(row=3, column=col_num)
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+            # Formato Condicional por Estado
+            fill_completado = PatternFill(start_color="E2EFDA", fill_type="solid")  # Verde
+            fill_proceso = PatternFill(start_color="FFF2CC", fill_type="solid")     # Amarillo
+            fill_pendiente = PatternFill(start_color="FCE4D6", fill_type="solid")   # Naranja
+
+            num_filas = len(df_export)
+            fila_inicio = 4
+            fila_fin = fila_inicio + num_filas - 1
+
+            for row in range(fila_inicio, fila_fin + 1):
+                ws.row_dimensions[row].height = 20
+                for col in range(1, ws.max_column + 1):
+                    cell = ws.cell(row=row, column=col)
+                    cell.font = body_font
+                    cell.border = thin_border
+                    
+                    col_name = str(ws.cell(row=3, column=col).value)
+
+                    if col_name == "Estado" and cell.value:
+                        val_lower = str(cell.value).lower()
+                        if any(k in val_lower for k in ["entregado", "listo", "pagado", "completado"]):
+                            cell.fill = fill_completado
+                        elif any(k in val_lower for k in ["producción", "borde", "proceso"]):
+                            cell.fill = fill_proceso
+                        elif any(k in val_lower for k in ["recibido", "pendiente"]):
+                            cell.fill = fill_pendiente
+
+                    if any(term in col_name for term in ["($)", "Monto", "Abonado", "Saldo"]):
+                        cell.number_format = '"$"#,##0.00'
+                        cell.alignment = Alignment(horizontal="right", vertical="center")
+                    elif any(term in col_name for term in ["ID", "Cant", "Delivery", "Fecha"]):
+                        cell.alignment = Alignment(horizontal="center", vertical="center")
+                    else:
+                        cell.alignment = Alignment(horizontal="left", vertical="center")
+
+            # Fila de Totales Automáticos (Fórmulas Excel SUM)
+            fila_total = fila_fin + 1
+            ws.row_dimensions[fila_total].height = 24
+            
+            ws.cell(row=fila_total, column=1, value="TOTALES GENERALES").font = total_font
+            ws.cell(row=fila_total, column=1).alignment = Alignment(horizontal="left", vertical="center")
+
+            for col in range(1, ws.max_column + 1):
+                cell = ws.cell(row=fila_total, column=col)
+                cell.fill = total_fill
+                cell.border = double_bottom_border
+                col_letter = get_column_letter(col)
+                col_name = str(ws.cell(row=3, column=col).value)
+
+                if "Cant. Prendas" in col_name:
+                    cell.value = f"=SUM({col_letter}{fila_inicio}:{col_letter}{fila_fin})"
+                    cell.font = total_font
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                elif any(term in col_name for term in ["($)", "Monto", "Abonado", "Saldo"]):
+                    cell.value = f"=SUM({col_letter}{fila_inicio}:{col_letter}{fila_fin})"
+                    cell.font = total_font
+                    cell.number_format = '"$"#,##0.00'
+                    cell.alignment = Alignment(horizontal="right", vertical="center")
+
+            # Auto-ajuste de Ancho de Columnas
+            for col in ws.columns:
+                max_len = 0
+                col_letter = get_column_letter(col[0].column)
+                for cell in col:
+                    if cell.row == 1: continue
+                    if cell.value is not None:
+                        val_str = f"${cell.value:,.2f}" if isinstance(cell.value, (int, float)) else str(cell.value)
+                        max_len = max(max_len, len(val_str))
+                ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
+        buffer.seek(0)
+        return buffer
+
+    # --------------------------------------------------------------------------
+    # INICIO DE LA INTERFAZ STREAMLIT
+    # --------------------------------------------------------------------------
     st.title("📊 Dashboard y Reportes de Administración")
     st.caption("🔒 Módulo exclusivo de control administrativo")
     
@@ -870,8 +1011,7 @@ elif pagina == "📊 Reportes":
         mask_cero = (df_ordenes_rep['monto_total'] <= 0)
         df_ordenes_rep.loc[mask_cero, 'monto_total'] = df_ordenes_rep.loc[mask_cero, 'abono'] + df_ordenes_rep.loc[mask_cero, 'saldo_pendiente']
 
-        # CRUCIAL: Priorizar FECHA DE PAGO sobre fecha de creación/entrega
-        # Si fue cobrada esta semana, entra en la nómina de esta semana aunque se haya creado antes
+        # Priorizar FECHA DE PAGO sobre fecha de creación/entrega
         df_ordenes_rep['fecha_liquidada'] = df_ordenes_rep['fecha_pago'].fillna(df_ordenes_rep['fecha_entrega']).fillna(df_ordenes_rep['fecha_creacion'])
         df_ordenes_rep['fecha_dt'] = pd.to_datetime(df_ordenes_rep['fecha_liquidada'], errors='coerce').dt.date
 
@@ -928,16 +1068,12 @@ elif pagina == "📊 Reportes":
             total_nomina_bordador = subtotal_neto_bordado * (pct_bordador / 100.0)
 
         col_pay1, col_pay2, col_pay3, col_pay4 = st.columns(4)
-        with col_pay1:
-            st.metric("🛵 Viajes Delivery", f"{total_viajes_delivery} viajes")
-        with col_pay2:
-            st.metric("📦 Total Repartidor", f"${total_monto_delivery:,.2f}")
-        with col_pay3:
-            st.metric("🧵 Base Neto Bordado", f"${subtotal_neto_bordado:,.2f}")
-        with col_pay4:
-            st.metric("💰 TOTAL BORDADOR", f"${total_nomina_bordador:,.2f}", help=f"{pct_bordador}% sobre la base neta")
+        with col_pay1: st.metric("🛵 Viajes Delivery", f"{total_viajes_delivery} viajes")
+        with col_pay2: st.metric("📦 Total Repartidor", f"${total_monto_delivery:,.2f}")
+        with col_pay3: st.metric("🧵 Base Neto Bordado", f"${subtotal_neto_bordado:,.2f}")
+        with col_pay4: st.metric("💰 TOTAL BORDADOR", f"${total_nomina_bordador:,.2f}", help=f"{pct_bordador}% sobre la base neta")
 
-        # GENERADOR EXCEL PROFESIONAL CON APORTES POR FECHA DE PAGO
+        # EXCEL DE NÓMINA Y DELIVERIES
         buffer_nomina = io.BytesIO()
         with pd.ExcelWriter(buffer_nomina, engine='openpyxl') as writer:
             cols_nom = [c for c in ["id", "nombre", "telefono", "email", "colegio", "cantidad_total", "delivery", "delivery_costo", "status", "fecha_liquidada", "monto_total", "abono", "saldo_pendiente"] if c in df_pagadas.columns]
@@ -1079,9 +1215,97 @@ elif pagina == "📊 Reportes":
 
         st.markdown("---")
 
-        # 5. FILTROS Y TABLA EN PANTALLA
+        # ----------------------------------------------------------------------
+        # FASE C: REPORTES ESPECIALIZADOS DE OPERACIÓN (TALLER Y LOGÍSTICA)
+        # ----------------------------------------------------------------------
+        st.subheader("🛠️ Reportes Especializados de Operación")
+        
+        tab_taller, tab_logistica = st.tabs(["🧵 Reporte de Taller (Producción)", "🛵 Reporte de Logística (Delivery)"])
+
+        # 1. REPORTE DE TALLER / PRODUCCIÓN
+        with tab_taller:
+            st.markdown("#### 🪡 Hoja de Trabajo para Bordadores y Ensamblaje")
+            st.caption("Filtro simplificado listo para imprimir o enviar al taller (sin datos de precios/cobros).")
+
+            df_taller = df_periodo[
+                df_periodo["status"].astype(str).str.lower().isin(["recibido", "en producción", "pendiente", "en proceso"])
+            ].copy()
+
+            if df_taller.empty:
+                st.info("ℹ️ No hay órdenes pendientes de bordado o en producción actualmente.")
+            else:
+                tot_prendas_taller = df_taller["cantidad_total"].sum()
+                
+                c1, c2 = st.columns(2)
+                with c1: st.metric("📋 Órdenes Activas en Taller", f"{len(df_taller)} pedidos")
+                with c2: st.metric("🧵 Total Prendas a Bordar", f"{tot_prendas_taller} piezas")
+
+                cols_taller = [c for c in ["id", "nombre", "colegio", "cantidad_total", "status", "fecha_entrega"] if c in df_taller.columns]
+                df_taller_view = df_taller[cols_taller].rename(columns={
+                    "id": "ID Pedido", "nombre": "Cliente", "colegio": "Diseño / Colegio",
+                    "cantidad_total": "Cant. Prendas", "status": "Estado Actual", "fecha_entrega": "Fecha Compromiso"
+                })
+
+                st.dataframe(df_taller_view, use_container_width=True)
+
+                buf_taller = io.BytesIO()
+                with pd.ExcelWriter(buf_taller, engine='openpyxl') as writer:
+                    df_taller_view.to_excel(writer, sheet_name="Taller_Produccion", index=False)
+                buf_taller.seek(0)
+
+                st.download_button(
+                    label="🖨️ Descargar Hoja de Taller (.xlsx)",
+                    data=buf_taller,
+                    file_name="reporte_taller_produccion.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+
+        # 2. REPORTE DE LOGÍSTICA / DELIVERY
+        with tab_logistica:
+            st.markdown("#### 📦 Guía de Despacho y Rutas de Entrega")
+            st.caption("Ficha de ruta optimizada para el motorizado / servicio de reparto.")
+
+            df_logistica = df_periodo[
+                df_periodo["delivery"].astype(str).str.lower().isin(["sí", "si", "true", "1", "delivery", "con delivery"])
+            ].copy()
+
+            if df_logistica.empty:
+                st.info("ℹ️ No hay entregas por delivery programadas en el período seleccionado.")
+            else:
+                col_log1, col_log2 = st.columns(2)
+                with col_log1: st.metric("🛵 Total Envíos a Domicilio", f"{len(df_logistica)} entregas")
+                with col_log2: st.metric("💵 Total Cobro Delivery", f"${df_logistica['delivery_costo'].sum():,.2f}")
+
+                cols_log = [c for c in ["id", "nombre", "telefono", "colegio", "status", "delivery_costo", "saldo_pendiente", "fecha_entrega"] if c in df_logistica.columns]
+                df_log_view = df_logistica[cols_log].rename(columns={
+                    "id": "ID Pedido", "nombre": "Cliente", "telefono": "Teléfono Contacto",
+                    "colegio": "Detalle / Referencia", "status": "Estado Delivery",
+                    "delivery_costo": "Flete ($)", "saldo_pendiente": "Cobrar en Destino ($)", "fecha_entrega": "Fecha Entrega"
+                })
+
+                st.dataframe(df_log_view, use_container_width=True)
+
+                buf_log = io.BytesIO()
+                with pd.ExcelWriter(buf_log, engine='openpyxl') as writer:
+                    df_log_view.to_excel(writer, sheet_name="Ruta_Delivery", index=False)
+                buf_log.seek(0)
+
+                st.download_button(
+                    label="🛵 Descargar Guía para Delivery (.xlsx)",
+                    data=buf_log,
+                    file_name="guia_rutas_delivery.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+
+        st.markdown("---")
+
+        # ----------------------------------------------------------------------
+        # 5. FILTROS EN PANTALLA Y DESCARGA HISTÓRICA COMPLETA (FASE B)
+        # ----------------------------------------------------------------------
         with st.container(border=True):
-            st.subheader("🔍 Filtros Adicionales de la Tabla")
+            st.subheader("🔍 Filtros Adicionales de la Tabla General")
             col_f1, col_f2 = st.columns(2)
             with col_f1:
                 estados_disponibles = ["Todos"] + list(df_periodo["status"].dropna().unique())
@@ -1095,6 +1319,18 @@ elif pagina == "📊 Reportes":
         if filtro_colegio != "Todos": df_filtrado = df_filtrado[df_filtrado["colegio"] == filtro_colegio]
 
         st.dataframe(df_filtrado, use_container_width=True)
+
+        # Generar el Excel Histórico FASE B (con Totales automáticos y Formato Condicional)
+        buffer_historico = generar_excel_historico(df_filtrado)
+
+        st.markdown("### 📥 Descargar Reporte Histórico General")
+        st.download_button(
+            label="📊 Descargar Histórico General con Totales y Formato Condicional (.xlsx)",
+            data=buffer_historico,
+            file_name=f"historico_general_bordaclick_{f_inicio}_al_{f_fin}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
 # ------------------------------------------------------------------------------
 # SECCIONES ADMINISTRATIVAS: CONFIGURACIÓN Y CATÁLOGOS
 # ------------------------------------------------------------------------------
