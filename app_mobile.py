@@ -1,7 +1,7 @@
 # ==============================================================================
 # BORDACLICK - APLICACIÓN MÓVIL (ENTORNO DEV)
 # Archivo Principal: app_mobile.py
-# Descripción: Interfaz web en Streamlit para toma de pedidos y panel de administración.
+# Descripción: Interfaz web en Streamlit para toma de pedidos, administración y reportes.
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
@@ -10,6 +10,8 @@
 import streamlit as st
 import pandas as pd
 from datetime import date, timedelta
+import plotly.express as px
+import plotly.graph_objects as go
 
 # Funciones de la base de datos (SQLite)
 try:
@@ -206,11 +208,10 @@ if pagina == "🌐 Inicio / Web":
             st.rerun()
 
 # ==============================================================================
-# MÓDULO 1: FORMULARIO CLIENTE (NUEVA SOLICITUD EN 4 PASOS CON NAVEGACIÓN MEJORADA)
+# MÓDULO 1: FORMULARIO CLIENTE (NUEVA SOLICITUD EN 4 PASOS)
 # ==============================================================================
 elif pagina == "📝 Nueva Solicitud":
 
-    # --- BARRA DE NAVEGACIÓN / PESTAÑAS DE PASOS INTERACTIVAS ---
     st.markdown("### 📝 Configura tu Solicitud")
     
     c_p1, c_p2, c_p3, c_p4 = st.columns(4)
@@ -243,9 +244,7 @@ elif pagina == "📝 Nueva Solicitud":
 
     st.divider()
 
-    # --------------------------------------------------------------------------
     # PASO 1: DATOS DEL CLIENTE
-    # --------------------------------------------------------------------------
     if st.session_state.paso == 1:
         st.progress(25)
         st.subheader("👤 1. Datos de Contacto")
@@ -270,14 +269,12 @@ elif pagina == "📝 Nueva Solicitud":
                 st.session_state.paso = 2
                 st.rerun()
 
-    # --------------------------------------------------------------------------
-    # PASO 2: SELECCIÓN DE COLEGIO Y PRENDAS (TARJETAS VISUALES MEJORADAS)
-    # --------------------------------------------------------------------------
+    # PASO 2: SELECCIÓN DE COLEGIO Y PRENDAS
     elif st.session_state.paso == 2:
         st.progress(50)
         st.subheader("🏫 2. Colegio y Prendas")
 
-        es_admin = (clave_admin == "BordaAdmin2026*")
+        es_admin = (clave_admin == clave_correcta)
 
         df_col = obtener_colegios()
         lista_colegios = ["Seleccione un colegio (Opcional)..."] + (df_col["nombre"].dropna().tolist() if not df_col.empty else [])
@@ -462,14 +459,11 @@ elif pagina == "📝 Nueva Solicitud":
                     st.session_state.paso = 3
                     st.rerun()
 
-    # --------------------------------------------------------------------------
-    # PASO 3: PERSONALIZACIÓN Y DELIVERY (CON VALIDACIÓN DE CANTIDAD DE NOMBRES)
-    # --------------------------------------------------------------------------
+    # PASO 3: PERSONALIZACIÓN Y DELIVERY
     elif st.session_state.paso == 3:
         st.progress(75)
         st.subheader("🧵 3. Personalización y Entrega")
 
-        # Calculamos el total de prendas reales guardadas en todos los colegios/grupos
         total_prendas_pedido = sum(p["cantidad"] for c in st.session_state.colegios_agregados for p in c["prendas"])
 
         df_del = obtener_zonas_delivery()
@@ -507,7 +501,6 @@ elif pagina == "📝 Nueva Solicitud":
             cantidad_nombre = 0
             if bordar_nombre == "Sí":
                 nombre_bordado = st.text_input("Nombre / Texto a bordar (ej. Nombre y ubicación en la prenda)", placeholder="Ej. Juan Pérez", key="input_texto_nombre")
-                # Limitamos el max_value al total real de prendas para evitar errores lógicos
                 cantidad_nombre = st.number_input(
                     f"¿En cuántas prendas se aplicará el nombre? (Máximo disponible: {total_prendas_pedido})", 
                     min_value=1, 
@@ -560,9 +553,7 @@ elif pagina == "📝 Nueva Solicitud":
                     st.session_state.paso = 4
                     st.rerun()
 
-    # --------------------------------------------------------------------------
     # PASO 4: RESUMEN Y CONFIRMACIÓN DE PEDIDO
-    # --------------------------------------------------------------------------
     elif st.session_state.paso == 4:
         st.progress(100)
         st.subheader("📋 4. Resumen Final de tu Solicitud")
@@ -830,8 +821,282 @@ elif pagina == "📋 Consultas":
                 else:
                     st.warning("⚠️ Marca la casilla de verificación anterior para confirmar la eliminación.")
 
+# ==============================================================================
+# MÓDULO ADMINISTRATIVO: DASHBOARD, NÓMINA BORDADOR Y EXPORTACIÓN EXCEL PROFESIONAL
+# ==============================================================================
+elif pagina == "📊 Reportes":
+    import io
+    import pandas as pd
+    import plotly.express as px
+    import plotly.graph_objects as go
+    from datetime import date, timedelta
+    import streamlit as st
+    
+    # Librerías para dar estilo profesional a Excel
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    st.title("📊 Dashboard y Reportes de Administración")
+    st.caption("🔒 Módulo exclusivo de control administrativo")
+    
+    df_ordenes_rep = obtener_ordenes()
+    
+    if df_ordenes_rep.empty:
+        st.info("ℹ️ No hay datos registrados en la base de datos para generar reportes.")
+    else:
+        # 0. MAPEO Y REPARACIÓN DE DATOS
+        mapeo_columnas = {
+            'monto': 'monto_total', 'total': 'monto_total', 'precio_total': 'monto_total',
+            'monto_orden': 'monto_total', 'precio': 'monto_total', 'delivery_precio': 'delivery_costo',
+            'costo_delivery': 'delivery_costo', 'saldo': 'saldo_pendiente', 'abono_inicial': 'abono',
+            'cantidad': 'cantidad_total', 'estado': 'status'
+        }
+        df_ordenes_rep.rename(columns=mapeo_columnas, inplace=True)
+
+        columnas_base = {
+            'monto_total': 0.0, 'abono': 0.0, 'saldo_pendiente': 0.0, 'delivery_costo': 0.0,
+            'cantidad_total': 0, 'status': 'Pendiente', 'colegio': 'N/A', 'delivery': 'No',
+            'email': '', 'correo': '', 'telefono': '', 'fecha_pago': None, 'fecha_entrega': None, 'fecha_creacion': None
+        }
+        
+        for col, val_defecto in columnas_base.items():
+            if col not in df_ordenes_rep.columns:
+                df_ordenes_rep[col] = val_defecto
+
+        for col in ['monto_total', 'abono', 'saldo_pendiente', 'delivery_costo', 'cantidad_total']:
+            df_ordenes_rep[col] = pd.to_numeric(df_ordenes_rep[col], errors='coerce').fillna(0)
+
+        # Reparación si el monto_total viene en 0
+        mask_cero = (df_ordenes_rep['monto_total'] <= 0)
+        df_ordenes_rep.loc[mask_cero, 'monto_total'] = df_ordenes_rep.loc[mask_cero, 'abono'] + df_ordenes_rep.loc[mask_cero, 'saldo_pendiente']
+
+        # CRUCIAL: Priorizar FECHA DE PAGO sobre fecha de creación/entrega
+        # Si fue cobrada esta semana, entra en la nómina de esta semana aunque se haya creado antes
+        df_ordenes_rep['fecha_liquidada'] = df_ordenes_rep['fecha_pago'].fillna(df_ordenes_rep['fecha_entrega']).fillna(df_ordenes_rep['fecha_creacion'])
+        df_ordenes_rep['fecha_dt'] = pd.to_datetime(df_ordenes_rep['fecha_liquidada'], errors='coerce').dt.date
+
+        # 1. FILTRO DE FECHAS
+        with st.container(border=True):
+            st.markdown("### 📅 Seleccionar Período (Nómina por Fecha de Cobro / Pago)")
+            hoy = date.today()
+            hace_7_dias = hoy - timedelta(days=6)
+            
+            col_f_fecha, col_f_quick = st.columns([2, 1])
+            with col_f_fecha:
+                rango_fechas = st.date_input(
+                    "Rango de fechas de cobro (Desde - Hasta):",
+                    value=(hace_7_dias, hoy),
+                    key="filtro_rango_semanal"
+                )
+            with col_f_quick:
+                st.write("")
+                st.caption("💡 Incluye todas las órdenes pagadas/liquidadas en este rango, sin importar su fecha de origen.")
+
+        if isinstance(rango_fechas, (list, tuple)) and len(rango_fechas) == 2:
+            f_inicio, f_fin = rango_fechas[0], rango_fechas[1]
+            df_periodo = df_ordenes_rep[
+                (df_ordenes_rep['fecha_dt'] >= f_inicio) & 
+                (df_ordenes_rep['fecha_dt'] <= f_fin)
+            ].copy()
+            st.success(f"🗓️ Evaluando órdenes pagadas/liquidadas desde **{f_inicio.strftime('%d/%m/%Y')}** hasta **{f_fin.strftime('%d/%m/%Y')}**")
+        else:
+            f_inicio, f_fin = hace_7_dias, hoy
+            df_periodo = df_ordenes_rep.copy()
+
+        # 2. SECCIÓN DE NÓMINA (BORDADOR Y DELIVERY)
+        df_pagadas = df_periodo[
+            (df_periodo["saldo_pendiente"] <= 0) | 
+            (df_periodo["status"].astype(str).str.lower().isin(["pagado", "entregado", "completado"]))
+        ].copy()
+
+        st.markdown("---")
+        st.subheader("💵 Resumen de Pagos a Delivery y Bordador (Órdenes Cobradas)")
+
+        df_delivery_pagados = df_pagadas[
+            df_pagadas["delivery"].astype(str).str.lower().isin(["sí", "si", "true", "1", "delivery", "con delivery"])
+        ]
+
+        total_viajes_delivery = len(df_delivery_pagados)
+        total_monto_delivery = df_delivery_pagados["delivery_costo"].sum()
+        subtotal_neto_bordado = (df_pagadas["monto_total"] - df_pagadas["delivery_costo"]).clip(lower=0).sum()
+
+        with st.expander("🧮 Calculadora de Pago al Bordador (Porcentaje sobre Venta Neta)", expanded=True):
+            pct_bordador = st.number_input(
+                "Porcentaje (%) a pagar al bordador sobre el total neto cobrado (sin delivery):", 
+                min_value=0.0, max_value=100.0, value=25.0, step=0.5, key="pct_empleado_bordado"
+            )
+            total_nomina_bordador = subtotal_neto_bordado * (pct_bordador / 100.0)
+
+        col_pay1, col_pay2, col_pay3, col_pay4 = st.columns(4)
+        with col_pay1:
+            st.metric("🛵 Viajes Delivery", f"{total_viajes_delivery} viajes")
+        with col_pay2:
+            st.metric("📦 Total Repartidor", f"${total_monto_delivery:,.2f}")
+        with col_pay3:
+            st.metric("🧵 Base Neto Bordado", f"${subtotal_neto_bordado:,.2f}")
+        with col_pay4:
+            st.metric("💰 TOTAL BORDADOR", f"${total_nomina_bordador:,.2f}", help=f"{pct_bordador}% sobre la base neta")
+
+        # GENERADOR EXCEL PROFESIONAL CON APORTES POR FECHA DE PAGO
+        buffer_nomina = io.BytesIO()
+        with pd.ExcelWriter(buffer_nomina, engine='openpyxl') as writer:
+            cols_nom = [c for c in ["id", "nombre", "telefono", "email", "colegio", "cantidad_total", "delivery", "delivery_costo", "status", "fecha_liquidada", "monto_total", "abono", "saldo_pendiente"] if c in df_pagadas.columns]
+            df_nom_export = df_pagadas[cols_nom].copy()
+            
+            if "id" in df_nom_export.columns:
+                df_nom_export["id"] = df_nom_export["id"].apply(lambda x: f"#{int(x):04d}" if str(x).isdigit() else str(x))
+
+            df_nom_export["Base Neto Bordado ($)"] = (df_nom_export["monto_total"] - df_nom_export["delivery_costo"]).clip(lower=0)
+            df_nom_export[f"Pago Bordador ({pct_bordador}%) ($)"] = df_nom_export["Base Neto Bordado ($)"] * (pct_bordador / 100.0)
+
+            nombres_cols = {
+                "id": "ID Pedido", "nombre": "Cliente", "telefono": "Teléfono", "email": "Correo",
+                "colegio": "Colegio", "cantidad_total": "Cant. Prendas", "delivery": "Delivery",
+                "delivery_costo": "Costo Delivery ($)", "status": "Estado", "fecha_liquidada": "Fecha de Cobro/Pago",
+                "monto_total": "Monto Total ($)", "abono": "Abonado ($)", "saldo_pendiente": "Saldo Pendiente ($)"
+            }
+            df_nom_export.rename(columns=nombres_cols, inplace=True)
+            df_nom_export.to_excel(writer, sheet_name="Detalle_Nomina", index=False, startrow=2)
+
+            df_resumen_nomina = pd.DataFrame([
+                {"CONCEPTO": "Período de Liquidación Desde", "VALOR / MONTO": str(f_inicio)},
+                {"CONCEPTO": "Período de Liquidación Hasta", "VALOR / MONTO": str(f_fin)},
+                {"CONCEPTO": "Total Órdenes Liquidadas", "VALOR / MONTO": len(df_pagadas)},
+                {"CONCEPTO": "Monto Total Facturado", "VALOR / MONTO": df_pagadas["monto_total"].sum()},
+                {"CONCEPTO": "Total Descontado por Delivery", "VALOR / MONTO": total_monto_delivery},
+                {"CONCEPTO": "Base Neta para Bordado", "VALOR / MONTO": subtotal_neto_bordado},
+                {"CONCEPTO": "Porcentaje Comisión Aplicado", "VALOR / MONTO": f"{pct_bordador}%"},
+                {"CONCEPTO": "TOTAL A PAGAR AL BORDADOR", "VALOR / MONTO": total_nomina_bordador},
+                {"CONCEPTO": "TOTAL A PAGAR AL REPARTIDOR", "VALOR / MONTO": total_monto_delivery}
+            ])
+            df_resumen_nomina.to_excel(writer, sheet_name="Resumen_Pago", index=False, startrow=2)
+
+            wb = writer.book
+            header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+            title_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+            header_font = Font(name="Segoe UI", size=11, bold=True, color="FFFFFF")
+            title_font = Font(name="Segoe UI", size=14, bold=True, color="1F4E79")
+            body_font = Font(name="Segoe UI", size=10)
+            thin_border = Border(
+                left=Side(style='thin', color='D9D9D9'), right=Side(style='thin', color='D9D9D9'),
+                top=Side(style='thin', color='D9D9D9'), bottom=Side(style='thin', color='D9D9D9')
+            )
+
+            for ws in wb.worksheets:
+                titulo_texto = "HISTÓRICO DE ÓRDENES LIQUIDADAS Y COBRADAS - BORDACLICK" if ws.title == "Detalle_Nomina" else "RESUMEN EJECUTIVO DE NÓMINA Y PAYROLL"
+                ws.merge_cells("A1:M1" if ws.title == "Detalle_Nomina" else "A1:B1")
+                cell_title = ws["A1"]
+                cell_title.value = titulo_texto
+                cell_title.font = title_font
+                cell_title.fill = title_fill
+                cell_title.alignment = Alignment(horizontal="center", vertical="center")
+                ws.row_dimensions[1].height = 35
+
+                ws.row_dimensions[3].height = 26
+                for col_num in range(1, ws.max_column + 1):
+                    cell = ws.cell(row=3, column=col_num)
+                    cell.fill = header_fill
+                    cell.font = header_font
+                    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+                for row in range(4, ws.max_row + 1):
+                    ws.row_dimensions[row].height = 20
+                    for col in range(1, ws.max_column + 1):
+                        cell = ws.cell(row=row, column=col)
+                        cell.font = body_font
+                        cell.border = thin_border
+                        
+                        col_name = str(ws.cell(row=3, column=col).value)
+                        
+                        if any(term in col_name for term in ["($)", "Monto", "Abonado", "Saldo", "Base", "Pago", "TOTAL"]):
+                            cell.number_format = '"$"#,##0.00'
+                            cell.alignment = Alignment(horizontal="right", vertical="center")
+                        elif "ID" in col_name or "Cant" in col_name or "Delivery" in col_name or "Fecha" in col_name:
+                            cell.alignment = Alignment(horizontal="center", vertical="center")
+                        else:
+                            cell.alignment = Alignment(horizontal="left", vertical="center")
+
+                for col in ws.columns:
+                    max_len = 0
+                    col_letter = get_column_letter(col[0].column)
+                    for cell in col:
+                        if cell.row == 1: continue
+                        if cell.value is not None:
+                            val_str = f"${cell.value:,.2f}" if isinstance(cell.value, (int, float)) else str(cell.value)
+                            max_len = max(max_len, len(val_str))
+                    ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
+        buffer_nomina.seek(0)
+
+        st.download_button(
+            label="📄 Descargar Recibo de Nómina y Delivery Profesional (.xlsx)",
+            data=buffer_nomina,
+            file_name=f"nomina_bordaclick_{f_inicio}_al_{f_fin}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+
+        st.markdown("---")
+
+        # 3. INDICADORES CLAVE (KPIs GENERALES)
+        st.subheader("📌 Indicadores Clave del Período")
+        tot_pedidos = len(df_periodo)
+        tot_abonos = df_periodo['abono'].sum()
+        tot_saldos = df_periodo['saldo_pendiente'].sum()
+        tot_facturado = tot_abonos + tot_saldos
+        ticket_prom = tot_facturado / tot_pedidos if tot_pedidos > 0 else 0
+
+        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+        with kpi1: st.metric("Total Facturado ($)", f"${tot_facturado:,.2f}")
+        with kpi2: st.metric("💵 Total Recaudado ($)", f"${tot_abonos:,.2f}")
+        with kpi3: st.metric("⏳ Cuentas por Cobrar ($)", f"${tot_saldos:,.2f}")
+        with kpi4: st.metric("🏷️ Ticket Promedio ($)", f"${ticket_prom:,.2f}")
+
+        st.markdown("---")
+
+        # 4. GRÁFICOS ESTADÍSTICOS (PLOTLY)
+        st.subheader("📈 Análisis de Operaciones del Período")
+        g_col1, g_col2 = st.columns(2)
+
+        with g_col1:
+            df_st = df_periodo["status"].value_counts().reset_index()
+            df_st.columns = ["Estado", "Cantidad"]
+            fig_status = px.pie(
+                df_st, values="Cantidad", names="Estado", 
+                title="Distribución de Órdenes por Estado", hole=0.4,
+                color_discrete_sequence=px.colors.qualitative.Set2
+            )
+            fig_status.update_traces(textposition="inside", textinfo="percent+label")
+            st.plotly_chart(fig_status, use_container_width=True)
+
+        with g_col2:
+            fig_balance = go.Figure(data=[
+                go.Bar(name="Cobrado ($)", x=["Balance"], y=[tot_abonos], marker_color="#2E7D32"),
+                go.Bar(name="Por Cobrar ($)", x=["Balance"], y=[tot_saldos], marker_color="#C62828")
+            ])
+            fig_balance.update_layout(barmode="group", title="Balance Financiero ($ USD)", yaxis_title="Monto ($)", height=380)
+            st.plotly_chart(fig_balance, use_container_width=True)
+
+        st.markdown("---")
+
+        # 5. FILTROS Y TABLA EN PANTALLA
+        with st.container(border=True):
+            st.subheader("🔍 Filtros Adicionales de la Tabla")
+            col_f1, col_f2 = st.columns(2)
+            with col_f1:
+                estados_disponibles = ["Todos"] + list(df_periodo["status"].dropna().unique())
+                filtro_estado = st.selectbox("Filtrar por Estado", estados_disponibles)
+            with col_f2:
+                colegios_disponibles = ["Todos"] + list(df_periodo["colegio"].dropna().unique())
+                filtro_colegio = st.selectbox("Filtrar por Colegio", colegios_disponibles)
+
+        df_filtrado = df_periodo.copy()
+        if filtro_estado != "Todos": df_filtrado = df_filtrado[df_filtrado["status"] == filtro_estado]
+        if filtro_colegio != "Todos": df_filtrado = df_filtrado[df_filtrado["colegio"] == filtro_colegio]
+
+        st.dataframe(df_filtrado, use_container_width=True)
 # ------------------------------------------------------------------------------
-# SECCIONES ADMINISTRATIVAS: GESTIÓN DE CATÁLOGOS Y TABLAS
+# SECCIONES ADMINISTRATIVAS: CONFIGURACIÓN Y CATÁLOGOS
 # ------------------------------------------------------------------------------
 
 elif pagina == "⚙️ Configuración":
@@ -1066,89 +1331,3 @@ elif pagina == "💾 Respaldo":
                 )
         except Exception as e:
             st.error(f"❌ Error al leer la base de datos: {e}")
-
-elif pagina == "📊 Reportes":
-    st.title("📊 Módulo de Reportes y Estadísticas")
-    
-    df_ordenes_rep = obtener_ordenes()
-    
-    if df_ordenes_rep.empty:
-        st.info("ℹ️ No hay datos suficientes para generar reportes.")
-    else:
-        with st.container(border=True):
-            st.subheader("🔍 Filtros de Reporte Avanzados")
-            
-            col_f1, col_f2, col_f3 = st.columns(3)
-            with col_f1:
-                estados_disponibles = ["Todos"] + df_ordenes_rep["status"].dropna().unique().tolist()
-                filtro_estado = st.selectbox("Filtrar por Estado", estados_disponibles)
-                
-            with col_f2:
-                colegios_disponibles = ["Todos"] + df_ordenes_rep["colegio"].dropna().unique().tolist()
-                filtro_colegio = st.selectbox("Filtrar por Colegio", colegios_disponibles)
-                
-            with col_f3:
-                filtro_pago = st.selectbox("Estado de Pago", ["Todos", "Pagados (Sin deuda)", "Pendientes por Pagar"])
-
-            col_f4, col_f5 = st.columns(2)
-            with col_f4:
-                filtro_delivery = st.selectbox("Tipo de Servicio", ["Todos", "Con Delivery", "Retiro en Tienda / Sin Delivery"])
-                
-            with col_f5:
-                filtro_bordado = st.selectbox("Personalización", ["Todos", "Con Nombres Bordados", "Sin Nombres Bordados"])
-
-        df_filtrado = df_ordenes_rep.copy()
-        
-        if filtro_estado != "Todos":
-            df_filtrado = df_filtrado[df_filtrado["status"] == filtro_estado]
-            
-        if filtro_colegio != "Todos":
-            df_filtrado = df_filtrado[df_filtrado["colegio"] == filtro_colegio]
-            
-        if "saldo_pendiente" in df_filtrado.columns:
-            if filtro_pago == "Pagados (Sin deuda)":
-                df_filtrado = df_filtrado[df_filtrado["saldo_pendiente"] <= 0]
-            elif filtro_pago == "Pendientes por Pagar":
-                df_filtrado = df_filtrado[df_filtrado["saldo_pendiente"] > 0]
-                
-        if "delivery" in df_filtrado.columns:
-            if filtro_delivery == "Con Delivery":
-                df_filtrado = df_filtrado[df_filtrado["delivery"].astype(str).str.lower().isin(["sí", "si", "true", "1", "delivery", "con delivery"])]
-            elif filtro_delivery == "Retiro en Tienda / Sin Delivery":
-                df_filtrado = df_filtrado[~df_filtrado["delivery"].astype(str).str.lower().isin(["sí", "si", "true", "1", "delivery", "con delivery"])]
-
-        col_nombre_bordado = next((c for c in df_filtrado.columns if "nombre" in c.lower() or "bordado" in c.lower()), None)
-        
-        if col_nombre_bordado:
-            valores_limpios = df_filtrado[col_nombre_bordado].astype(str).str.strip().str.lower()
-            es_vacio = (
-                df_filtrado[col_nombre_bordado].isna() | 
-                (valores_limpios == "") | 
-                (valores_limpios == "nan") | 
-                (valores_limpios == "none") | 
-                (valores_limpios == "no") | 
-                (valores_limpios == "n/a") |
-                (valores_limpios == "-")
-            )
-
-            if filtro_bordado == "Con Nombres Bordados":
-                df_filtrado = df_filtrado[~es_vacio]
-            elif filtro_bordado == "Sin Nombres Bordados":
-                df_filtrado = df_filtrado[es_vacio]
-        else:
-            if filtro_bordado == "Con Nombres Bordados":
-                df_filtrado = df_filtrado.iloc[0:0]
-
-        st.metric(label="Total de Órdenes Filtradas", value=len(df_filtrado))
-        
-        total_recaudado = df_filtrado["abono"].sum() if "abono" in df_filtrado.columns else 0.0
-        total_pendiente = df_filtrado["saldo_pendiente"].sum() if "saldo_pendiente" in df_filtrado.columns else 0.0
-        
-        c_m1, c_m2 = st.columns(2)
-        with c_m1:
-            st.metric(label="💰 Total Abonado Filtrado", value=f"${total_recaudado:.2f}")
-        with c_m2:
-            st.metric(label="⚠️ Total Pendiente Filtrado", value=f"${total_pendiente:.2f}")
-            
-        st.divider()
-        st.dataframe(df_filtrado, use_container_width=True)

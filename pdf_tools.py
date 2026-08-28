@@ -60,7 +60,7 @@ def generar_pdf_orden(orden, detalle_orden, tasa_cambio=0.0):
 
     elementos = []
 
-    # 1. Encabezado Título##
+    # 1. Encabezado Título
     elementos.append(Paragraph(f"BORDACLICK - COMPROBANTE DE ORDEN #{pedido_id:04d}", estilo_titulo))
     elementos.append(Spacer(1, 15))
 
@@ -98,7 +98,7 @@ def generar_pdf_orden(orden, detalle_orden, tasa_cambio=0.0):
     elementos.append(tabla_info)
     elementos.append(Spacer(1, 15))
 
-    # 3. Detalle de Bordado de Nombres (NUEVA MEJORA INCORPORADA)#
+    # 3. Detalle de Bordado de Nombres
     bordar_nombre_val = str(orden.get("bordar_nombre", "No"))
     nombre_bordado_val = str(orden.get("nombre_bordado", ""))
     cantidad_nombre_val = _safe_float(orden.get("cantidad_nombre", 0))
@@ -345,15 +345,15 @@ def generar_excel_historico(df_ordenes):
     fondo_azul_oscuro = PatternFill(fill_type="solid", start_color="1A365D")
     fondo_azul_medio = PatternFill(fill_type="solid", start_color="2B6CB0")
 
-    ws.merge_cells("A1:N1")
+    ws.merge_cells("A1:P1")
     ws["A1"] = "HISTÓRICO GENERAL DE ÓRDENES Y PAGOS EN BOLÍVARES Y DÓLARES - BORDACLICK"
     ws["A1"].font = titulo_blanco
     ws["A1"].fill = fondo_azul_oscuro
     ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
 
     headers = [
-        "ID Pedido", "Cliente", "Teléfono", "Correo", "Colegio",
-        "Cant. Prendas", "Delivery", "Estado", "Fecha Entrega",
+        "ID Pedido", "Fecha Recepción", "Cliente", "Teléfono", "Correo", "Colegio",
+        "Cant. Prendas", "Delivery", "Costo Delivery ($)", "Estado", "Fecha Entrega",
         "Abonado ($)", "Saldo Pendiente ($)", "Monto Pago (Bs.)", "Tasa de Cambio", "Fecha Último Pago"
     ]
 
@@ -367,20 +367,34 @@ def generar_excel_historico(df_ordenes):
 
     for row_idx, fila in enumerate(df_ordenes.to_dict(orient="records"), start=4):
         orden_id = int(fila.get('id', 0))
-        ws.cell(row=row_idx, column=1, value=f"#{orden_id:04d}")
-        ws.cell(row=row_idx, column=2, value=str(fila.get("nombre", "")))
-        ws.cell(row=row_idx, column=3, value=str(fila.get("telefono", "")))
-        ws.cell(row=row_idx, column=4, value=str(fila.get("correo", "")))
-        ws.cell(row=row_idx, column=5, value=str(fila.get("colegio", "")))
-        ws.cell(row=row_idx, column=6, value=int(fila.get("cantidad_total", 0)))
-        ws.cell(row=row_idx, column=7, value=str(fila.get("delivery", "")))
-        ws.cell(row=row_idx, column=8, value=str(fila.get("status", "")))
-        ws.cell(row=row_idx, column=9, value=str(fila.get("fecha_entrega", "")))
+        
+        # Obtener fecha de recepción (creación o primer registro)
+        fecha_recepcion_val = str(fila.get("fecha_recepcion", fila.get("fecha_registro", "N/A")))
+        if fecha_recepcion_val == "N/A":
+            df_primer_pago = pd.read_sql_query(f"SELECT fecha FROM historico_pagos WHERE orden_id = {orden_id} ORDER BY id ASC LIMIT 1", conn)
+            if not df_primer_pago.empty:
+                fecha_recepcion_val = df_primer_pago["fecha"].iloc[0]
 
-        celda_abono = ws.cell(row=row_idx, column=10, value=_safe_float(fila.get("abono")))
+        ws.cell(row=row_idx, column=1, value=f"#{orden_id:04d}")
+        ws.cell(row=row_idx, column=2, value=fecha_recepcion_val)
+        ws.cell(row=row_idx, column=3, value=str(fila.get("nombre", "")))
+        ws.cell(row=row_idx, column=4, value=str(fila.get("telefono", "")))
+        ws.cell(row=row_idx, column=5, value=str(fila.get("correo", "")))
+        ws.cell(row=row_idx, column=6, value=str(fila.get("colegio", "")))
+        ws.cell(row=row_idx, column=7, value=int(fila.get("cantidad_total", 0)))
+        ws.cell(row=row_idx, column=8, value=str(fila.get("delivery", "")))
+
+        # Columna Costo Delivery
+        celda_costo_del = ws.cell(row=row_idx, column=9, value=_safe_float(fila.get("delivery_costo")))
+        celda_costo_del.number_format = "$#,##0.00"
+
+        ws.cell(row=row_idx, column=10, value=str(fila.get("status", "")))
+        ws.cell(row=row_idx, column=11, value=str(fila.get("fecha_entrega", "")))
+
+        celda_abono = ws.cell(row=row_idx, column=12, value=_safe_float(fila.get("abono")))
         celda_abono.number_format = "$#,##0.00"
 
-        celda_saldo = ws.cell(row=row_idx, column=11, value=_safe_float(fila.get("saldo_pendiente")))
+        celda_saldo = ws.cell(row=row_idx, column=13, value=_safe_float(fila.get("saldo_pendiente")))
         celda_saldo.number_format = "$#,##0.00"
 
         df_pago = pd.read_sql_query(f"SELECT monto_bs, tasa_cambio FROM historico_pagos WHERE orden_id = {orden_id} ORDER BY id DESC LIMIT 1", conn)
@@ -388,19 +402,19 @@ def generar_excel_historico(df_ordenes):
         monto_bs_val = df_pago["monto_bs"].iloc[0] if not df_pago.empty else 0.0
         tasa_val = df_pago["tasa_cambio"].iloc[0] if not df_pago.empty else 0.0
 
-        celda_bs = ws.cell(row=row_idx, column=12, value=_safe_float(monto_bs_val))
+        celda_bs = ws.cell(row=row_idx, column=14, value=_safe_float(monto_bs_val))
         celda_bs.number_format = "Bs.#,##0.00"
 
-        celda_tasa = ws.cell(row=row_idx, column=13, value=_safe_float(tasa_val))
+        celda_tasa = ws.cell(row=row_idx, column=15, value=_safe_float(tasa_val))
         celda_tasa.number_format = "#,##0.00"
 
         fecha_pago_val = str(fila.get("fecha_pago", "Sin pagos")) if fila.get("fecha_pago") else "Sin pagos"
-        ws.cell(row=row_idx, column=14, value=fecha_pago_val)
+        ws.cell(row=row_idx, column=16, value=fecha_pago_val)
 
     conn.close()
 
-    columnas = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"]
-    anchos = [12, 25, 15, 25, 25, 14, 12, 18, 15, 15, 15, 18, 15, 18]
+    columnas = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P"]
+    anchos = [12, 16, 25, 15, 25, 25, 14, 12, 18, 18, 15, 15, 15, 18, 15, 18]
     for col, ancho in zip(columnas, anchos):
         ws.column_dimensions[col].width = ancho
 
