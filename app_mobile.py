@@ -117,7 +117,7 @@ pagina = st.sidebar.selectbox(
 st.session_state.pagina_activa = pagina
 
 # ------------------------------------------------------------------------------
-# 4. MEMORIA DE SESIÓN (SESSION STATE)
+# 4. MEMORIA DE SESIÓN (SESSION STATE) Y ROBUSTECIMIENTO DE ESTADO
 # ------------------------------------------------------------------------------
 if "paso" not in st.session_state:
     st.session_state.paso = 1
@@ -130,6 +130,9 @@ if "colegios_agregados" not in st.session_state:
 
 if "form_version" not in st.session_state:
     st.session_state.form_version = 0
+
+if "prendas_actuales" not in st.session_state:
+    st.session_state.prendas_actuales = []
 
 # ------------------------------------------------------------------------------
 # 5. ENCABEZADO PRINCIPAL DE LA APLICACIÓN
@@ -373,9 +376,6 @@ elif pagina == "📝 Nueva Solicitud":
 
                 cantidad = st.number_input("Cantidad *", min_value=1, value=1, key=f"cantidad_{v}")
 
-        if "prendas_actuales" not in st.session_state:
-            st.session_state.prendas_actuales = []
-
         if st.button("➕ Agregar Prenda a la Lista Actual", use_container_width=True):
             if tipo_prenda == "Seleccione una prenda...":
                 st.error("Debe seleccionar un tipo de prenda.")
@@ -597,7 +597,7 @@ elif pagina == "📝 Nueva Solicitud":
                 st.write(f"🏫 **{colegio_nombre}** {'🎉 *(Descuento de $0.50 aplicado por 6+ prendas)*' if cantidad_colegio >= 6 and precio_colegio > 0 else ''}")
                 st.write(f"   ↳ {cantidad_colegio} prendas x ${precio_colegio:.2f} = **${subtotal_colegio:.2f}**")
 
-            precio_nombre = float(obtener_parametro("precio_nombre") or 0)
+            precio_nombre = float(obtener_parametro("precio_bordado_nombre") or 2.0)
             subtotal_nombres = (st.session_state.cantidad_nombre * precio_nombre) if st.session_state.bordar_nombre == "Sí" else 0.0
 
             if st.session_state.bordar_nombre == "Sí":
@@ -617,55 +617,58 @@ elif pagina == "📝 Nueva Solicitud":
                 st.rerun()
         with col2:
             if st.button("✅ Confirmar y Enviar Solicitud", key="confirmar_solicitud_mobile", use_container_width=True, type="primary", disabled=st.session_state.solicitud_enviada):
-                colegio_orden = "Múltiples Grupos" if len(st.session_state.colegios_agregados) > 1 else st.session_state.colegios_agregados[0]["colegio"]
-                cantidad_total = sum(p["cantidad"] for c in st.session_state.colegios_agregados for p in c["prendas"])
-
-                orden_id = guardar_orden(
-                    st.session_state.nombre,
-                    st.session_state.telefono,
-                    st.session_state.correo,
-                    colegio_orden,
-                    cantidad_total,
-                    st.session_state.tipo_logo,
-                    st.session_state.nombre_bordado,
-                    st.session_state.cantidad_nombre,
-                    st.session_state.delivery,
-                    st.session_state.zona_delivery,
-                    fecha_entrega,
-                    0,
-                    subtotal_bordado,
-                    subtotal_nombres,
-                    st.session_state.costo_delivery,
-                    0,
-                    total_estimado,
-                    "Recibido"
-                )
-
-                for colegio_data in st.session_state.colegios_agregados:
-                    for prenda in colegio_data["prendas"]:
-                        guardar_detalle(
-                            orden_id,
-                            colegio_data["colegio"],
-                            prenda["tipo"],
-                            prenda["talla"],
-                            prenda["marca"],
-                            prenda["color"],
-                            int(prenda["cantidad"])
-                        )
-
                 try:
-                    enviar_confirmacion_solicitud(
-                        st.session_state.correo,
-                        st.session_state.nombre,
-                        orden_id,
-                        fecha_entrega
-                    )
-                except Exception as e:
-                    st.error(f"Error enviando correo: {e}")
+                    colegio_orden = "Múltiples Grupos" if len(st.session_state.colegios_agregados) > 1 else st.session_state.colegios_agregados[0]["colegio"]
+                    cantidad_total = sum(p["cantidad"] for c in st.session_state.colegios_agregados for p in c["prendas"])
 
-                st.session_state.solicitud_enviada = True
-                st.session_state.ultimo_pedido = orden_id
-                st.rerun()
+                    orden_id = guardar_orden(
+                        st.session_state.nombre,
+                        st.session_state.telefono,
+                        st.session_state.correo,
+                        colegio_orden,
+                        cantidad_total,
+                        st.session_state.tipo_logo,
+                        st.session_state.nombre_bordado,
+                        st.session_state.cantidad_nombre,
+                        st.session_state.delivery,
+                        st.session_state.zona_delivery,
+                        fecha_entrega,
+                        0,
+                        subtotal_bordado,
+                        subtotal_nombres,
+                        st.session_state.costo_delivery,
+                        0,
+                        total_estimado,
+                        "Recibido"
+                    )
+
+                    for colegio_data in st.session_state.colegios_agregados:
+                        for prenda in colegio_data["prendas"]:
+                            guardar_detalle(
+                                orden_id,
+                                colegio_data["colegio"],
+                                prenda["tipo"],
+                                prenda["talla"],
+                                prenda["marca"],
+                                prenda["color"],
+                                int(prenda["cantidad"])
+                            )
+
+                    try:
+                        enviar_confirmacion_solicitud(
+                            st.session_state.correo,
+                            st.session_state.nombre,
+                            orden_id,
+                            fecha_entrega
+                        )
+                    except Exception as e:
+                        st.warning(f"Pedido guardado, pero ocurrió un aviso con el correo: {e}")
+
+                    st.session_state.solicitud_enviada = True
+                    st.session_state.ultimo_pedido = orden_id
+                    st.rerun()
+                except Exception as ex:
+                    st.error(f"❌ Error al procesar la solicitud en la base de datos: {ex}")
 
         if st.session_state.solicitud_enviada:
             st.balloons()
@@ -1007,11 +1010,9 @@ elif pagina == "📊 Reportes":
         for col in ['monto_total', 'abono', 'saldo_pendiente', 'delivery_costo', 'cantidad_total']:
             df_ordenes_rep[col] = pd.to_numeric(df_ordenes_rep[col], errors='coerce').fillna(0)
 
-        # Reparación si el monto_total viene en 0
         mask_cero = (df_ordenes_rep['monto_total'] <= 0)
         df_ordenes_rep.loc[mask_cero, 'monto_total'] = df_ordenes_rep.loc[mask_cero, 'abono'] + df_ordenes_rep.loc[mask_cero, 'saldo_pendiente']
 
-        # Priorizar FECHA DE PAGO sobre fecha de creación/entrega
         df_ordenes_rep['fecha_liquidada'] = df_ordenes_rep['fecha_pago'].fillna(df_ordenes_rep['fecha_entrega']).fillna(df_ordenes_rep['fecha_creacion'])
         df_ordenes_rep['fecha_dt'] = pd.to_datetime(df_ordenes_rep['fecha_liquidada'], errors='coerce').dt.date
 
@@ -1320,7 +1321,6 @@ elif pagina == "📊 Reportes":
 
         st.dataframe(df_filtrado, use_container_width=True)
 
-        # Generar el Excel Histórico FASE B (con Totales automáticos y Formato Condicional)
         buffer_historico = generar_excel_historico(df_filtrado)
 
         st.markdown("### 📥 Descargar Reporte Histórico General")
@@ -1331,6 +1331,7 @@ elif pagina == "📊 Reportes":
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
+
 # ------------------------------------------------------------------------------
 # SECCIONES ADMINISTRATIVAS: CONFIGURACIÓN Y CATÁLOGOS
 # ------------------------------------------------------------------------------

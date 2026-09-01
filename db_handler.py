@@ -167,6 +167,67 @@ def guardar_detalle(orden_id, colegio, tipo_prenda, talla, marca, color, cantida
     conn.close()
 
 
+# --- NUEVA FUNCIÓN TRANSACCIONAL (OPCIÓN 2) ---
+def guardar_orden_con_detalles(datos_orden, detalles):
+    """
+    Registra una orden y todos sus detalles en una sola transacción atómica.
+    Aplica rollback automático si ocurre cualquier error, previniendo registros huérfanos.
+    """
+    conn = obtener_conexion()
+    cursor = conn.cursor()
+    orden_id = None
+    try:
+        cursor.execute("BEGIN TRANSACTION;")
+        
+        cursor.execute("""
+            INSERT INTO ordenes (
+                nombre, telefono, correo, colegio, cantidad_total, tipo_logo,
+                nombre_bordado, cantidad_nombre, delivery, zona_delivery, fecha_entrega,
+                precio_bordado, subtotal_bordado, subtotal_nombres, delivery_costo,
+                abono, saldo_pendiente, status, fecha_pago
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            datos_orden.get('nombre'), datos_orden.get('telefono'), datos_orden.get('correo'),
+            datos_orden.get('colegio'), datos_orden.get('cantidad_total'), datos_orden.get('tipo_logo'),
+            datos_orden.get('nombre_bordado'), datos_orden.get('cantidad_nombre'), datos_orden.get('delivery'),
+            datos_orden.get('zona_delivery'), str(datos_orden.get('fecha_entrega')),
+            datos_orden.get('precio_bordado'), datos_orden.get('subtotal_bordado'), datos_orden.get('subtotal_nombres'),
+            datos_orden.get('delivery_costo'), datos_orden.get('abono'), datos_orden.get('saldo_pendiente'),
+            datos_orden.get('status'), None
+        ))
+
+        orden_id = cursor.lastrowid
+
+        for detalle in detalles:
+            if isinstance(detalle, dict):
+                col = detalle.get('colegio')
+                prenda = detalle.get('tipo_prenda')
+                talla = detalle.get('talla')
+                marca = detalle.get('marca')
+                color = detalle.get('color')
+                cant = detalle.get('cantidad')
+            else:
+                col, prenda, talla, marca, color, cant = detalle
+
+            cursor.execute("""
+            INSERT INTO orden_detalle (orden_id, colegio, tipo_prenda, talla, marca, color, cantidad)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (orden_id, col, prenda, talla, marca, color, cant))
+
+        conn.commit()
+        return True, orden_id, "Orden y detalles guardados exitosamente."
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"❌ Error transaccional al guardar orden: {e}")
+        return False, None, str(e)
+        
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def guardar_parametro(parametro, valor):
     conn = obtener_conexion()
     cursor = conn.cursor()
